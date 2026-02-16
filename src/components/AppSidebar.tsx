@@ -8,9 +8,12 @@ import {
   LogOut,
   Sparkles,
   Users,
+  Menu,
+  X,
 } from "lucide-react";
 import { BixLogo } from "./BixLogo";
 import { useAuth } from "@/hooks/useAuth";
+import { useState, useEffect } from "react";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -24,13 +27,25 @@ const navItems = [
 export function AppSidebar() {
   const location = useLocation();
   const { signOut } = useAuth();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
-  return (
-    <aside className="fixed left-0 top-0 z-40 flex h-screen w-64 flex-col border-r border-border bg-sidebar">
-      <div className="flex h-16 items-center px-6">
+  // Close on route change
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
+
+  const sidebarContent = (
+    <>
+      <div className="flex h-16 items-center justify-between px-6">
         <Link to="/dashboard">
           <BixLogo size="sm" />
         </Link>
+        <button
+          onClick={() => setMobileOpen(false)}
+          className="lg:hidden text-muted-foreground hover:text-foreground"
+        >
+          <X className="h-5 w-5" />
+        </button>
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-1">
@@ -69,6 +84,45 @@ export function AppSidebar() {
           Sign Out
         </button>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Mobile top bar */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 flex items-center justify-between h-14 px-4 bg-sidebar border-b border-border">
+        <Link to="/dashboard">
+          <BixLogo size="sm" />
+        </Link>
+        <button
+          onClick={() => setMobileOpen(true)}
+          className="text-muted-foreground hover:text-foreground p-2"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+      </div>
+
+      {/* Mobile overlay */}
+      {mobileOpen && (
+        <div
+          className="lg:hidden fixed inset-0 z-50 bg-background/80 backdrop-blur-sm"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
+      {/* Mobile sidebar drawer */}
+      <aside
+        className={`lg:hidden fixed left-0 top-0 z-50 flex h-screen w-64 flex-col border-r border-border bg-sidebar transition-transform duration-300 ${
+          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        {sidebarContent}
+      </aside>
+
+      {/* Desktop sidebar */}
+      <aside className="hidden lg:flex fixed left-0 top-0 z-40 h-screen w-64 flex-col border-r border-border bg-sidebar">
+        {sidebarContent}
+      </aside>
+    </>
   );
 }

@@ -81,20 +81,10 @@ export default function SpinToEarn() {
     setRotation(newRotation);
 
     setTimeout(async () => {
-      const { error } = await supabase.from("spin_records").insert({
+      await supabase.from("spin_records").insert({
         user_id: session.user.id,
         reward_amount: reward,
       });
-
-      if (!error) {
-        // Also record as activity
-        await supabase.from("activities").insert({
-          user_id: session.user.id,
-          activity_type: "custom",
-          points_earned: reward,
-          description: `Spin & Earn: Won ${reward} BIX`,
-        });
-      }
 
       setLastWin(reward);
       setSpinning(false);

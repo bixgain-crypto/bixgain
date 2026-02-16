@@ -1,5 +1,5 @@
 import { AppLayout } from "@/components/AppLayout";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
 import { ListTodo, Clock, Coins, CheckCircle2 } from "lucide-react";
@@ -34,6 +34,8 @@ export default function Tasks() {
     },
   });
 
+  const queryClient = useQueryClient();
+
   const handleComplete = async (taskId: string, points: number) => {
     if (!session?.user?.id) return;
     
@@ -53,6 +55,8 @@ export default function Tasks() {
       }
     } else {
       toast.success(`Earned ${points} BIX!`);
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
+      queryClient.invalidateQueries({ queryKey: ["completed-tasks"] });
     }
   };
 
