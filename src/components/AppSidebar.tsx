@@ -6,6 +6,8 @@ import {
   ArrowUpRight,
   Shield,
   LogOut,
+  Sparkles,
+  Users,
 } from "lucide-react";
 import { BixLogo } from "./BixLogo";
 import { useAuth } from "@/hooks/useAuth";
@@ -13,8 +15,10 @@ import { useAuth } from "@/hooks/useAuth";
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/tasks", label: "Tasks", icon: ListTodo },
+  { href: "/spin", label: "Spin & Earn", icon: Sparkles },
   { href: "/wallet", label: "Wallet", icon: Wallet },
-  { href: "/claims", label: "Claims", icon: ArrowUpRight },
+  { href: "/referrals", label: "Referrals", icon: Users },
+  { href: "/claims", label: "Coming Soon", icon: ArrowUpRight },
 ];
 
 export function AppSidebar() {

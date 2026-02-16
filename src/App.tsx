@@ -10,6 +10,8 @@ import Tasks from "./pages/Tasks";
 import WalletPage from "./pages/WalletPage";
 import Claims from "./pages/Claims";
 import Admin from "./pages/Admin";
+import SpinToEarn from "./pages/SpinToEarn";
+import Referrals from "./pages/Referrals";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,6 +29,8 @@ const App = () => (
           <Route path="/tasks" element={<Tasks />} />
           <Route path="/wallet" element={<WalletPage />} />
           <Route path="/claims" element={<Claims />} />
+          <Route path="/spin" element={<SpinToEarn />} />
+          <Route path="/referrals" element={<Referrals />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
