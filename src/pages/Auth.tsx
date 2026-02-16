@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,12 +6,23 @@ import { Label } from "@/components/ui/label";
 import { BixLogo } from "@/components/BixLogo";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
+import { useSearchParams } from "react-router-dom";
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [referralCode, setReferralCode] = useState("");
   const [loading, setLoading] = useState(false);
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    const ref = searchParams.get("ref");
+    if (ref) {
+      setReferralCode(ref);
+      setIsLogin(false);
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,10 +37,40 @@ export default function Auth() {
         window.location.href = "/dashboard";
       }
     } else {
-      const { error } = await supabase.auth.signUp({ email, password });
+      const { data: signUpData, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { referral_code: referralCode || undefined },
+        },
+      });
       if (error) {
         toast.error(error.message);
       } else {
+        // If referral code provided, link referral after signup
+        if (referralCode && signUpData.user) {
+          const { data: referrer } = await supabase
+            .from("profiles")
+            .select("id, user_id")
+            .eq("referral_code", referralCode)
+            .maybeSingle();
+
+          if (referrer) {
+            // Update referred_by on the new user's profile
+            await supabase
+              .from("profiles")
+              .update({ referred_by: referrer.id })
+              .eq("user_id", signUpData.user.id);
+
+            // Credit referrer with bonus
+            await supabase.from("activities").insert({
+              user_id: referrer.user_id,
+              activity_type: "referral",
+              points_earned: 50,
+              description: `Referral bonus: ${email} signed up`,
+            });
+          }
+        }
         toast.success("Check your email to verify your account!");
       }
     }
@@ -77,6 +118,20 @@ export default function Auth() {
               className="bg-secondary border-border"
             />
           </div>
+
+          {!isLogin && (
+            <div className="space-y-2">
+              <Label htmlFor="referral">Referral Code (optional)</Label>
+              <Input
+                id="referral"
+                type="text"
+                placeholder="e.g. BIX1A2B3C4D"
+                value={referralCode}
+                onChange={(e) => setReferralCode(e.target.value)}
+                className="bg-secondary border-border font-mono"
+              />
+            </div>
+          )}
 
           <Button type="submit" className="w-full bg-gradient-gold font-semibold" disabled={loading}>
             {loading ? "Loading..." : isLogin ? "Sign In" : "Sign Up"}
