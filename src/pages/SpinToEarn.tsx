@@ -8,11 +8,11 @@ import { Button } from "@/components/ui/button";
 import { useState, useCallback, useEffect } from "react";
 import { toast } from "sonner";
 
-const SPIN_REWARDS = [5, 10, 15, 20, 25, 50, 75, 100];
+const SPIN_REWARDS = [5, 200, 50, 20, 150, 10, 25, 100];
 const SEGMENTS = SPIN_REWARDS.length;
 const SEGMENT_ANGLE = 360 / SEGMENTS;
 const MAX_SPINS = 3;
-const COOLDOWN_HOURS = 3;
+const COOLDOWN_HOURS = 2;
 
 export default function SpinToEarn() {
   const { session } = useAuth();
