@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { BixLogo } from "./BixLogo";
 import { useAuth } from "@/hooks/useAuth";
+import { useAdmin } from "@/hooks/useAdmin";
 import { useState, useEffect } from "react";
 
 const navItems = [
@@ -27,16 +28,16 @@ const navItems = [
 export function AppSidebar() {
   const location = useLocation();
   const { signOut } = useAuth();
+  const { isAdmin } = useAdmin();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // Close on route change
   useEffect(() => {
     setMobileOpen(false);
   }, [location.pathname]);
 
   const sidebarContent = (
     <>
-      <div className="flex h-16 items-center justify-between px-6">
+      <div className="flex h-14 items-center justify-between px-4 sm:px-6 sm:h-16">
         <Link to="/dashboard">
           <BixLogo size="sm" />
         </Link>
@@ -48,7 +49,7 @@ export function AppSidebar() {
         </button>
       </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-1">
+      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         {navItems.map((item) => {
           const isActive = location.pathname === item.href;
           return (
@@ -69,13 +70,19 @@ export function AppSidebar() {
       </nav>
 
       <div className="border-t border-border p-3 space-y-1">
-        <Link
-          to="/admin"
-          className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground transition-all"
-        >
-          <Shield className="h-4 w-4" />
-          Admin
-        </Link>
+        {isAdmin && (
+          <Link
+            to="/admin"
+            className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
+              location.pathname === "/admin"
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+            }`}
+          >
+            <Shield className="h-4 w-4" />
+            Admin
+          </Link>
+        )}
         <button
           onClick={signOut}
           className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all"

@@ -391,6 +391,69 @@ export type Database = {
           },
         ]
       }
+      referrals: {
+        Row: {
+          created_at: string
+          id: string
+          qualified: boolean
+          qualified_at: string | null
+          referred_id: string
+          referred_ip: string | null
+          referrer_id: string
+          referrer_ip: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          qualified?: boolean
+          qualified_at?: string | null
+          referred_id: string
+          referred_ip?: string | null
+          referrer_id: string
+          referrer_ip?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          qualified?: boolean
+          qualified_at?: string | null
+          referred_id?: string
+          referred_ip?: string | null
+          referrer_id?: string
+          referrer_ip?: string | null
+        }
+        Relationships: []
+      }
+      reward_ledger: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          reason: string
+          reference_id: string | null
+          reference_type: string | null
+          user_id: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          id?: string
+          reason: string
+          reference_id?: string | null
+          reference_type?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          reason?: string
+          reference_id?: string | null
+          reference_type?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       reward_limits: {
         Row: {
           created_at: string
@@ -511,6 +574,65 @@ export type Database = {
         }
         Relationships: []
       }
+      task_attempts: {
+        Row: {
+          created_at: string
+          device_id: string | null
+          id: string
+          ip_address: string | null
+          proof_text: string | null
+          proof_url: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          suspicious: boolean | null
+          task_id: string
+          user_id: string
+          visit_token: string | null
+          watch_seconds: number | null
+        }
+        Insert: {
+          created_at?: string
+          device_id?: string | null
+          id?: string
+          ip_address?: string | null
+          proof_text?: string | null
+          proof_url?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          suspicious?: boolean | null
+          task_id: string
+          user_id: string
+          visit_token?: string | null
+          watch_seconds?: number | null
+        }
+        Update: {
+          created_at?: string
+          device_id?: string | null
+          id?: string
+          ip_address?: string | null
+          proof_text?: string | null
+          proof_url?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          suspicious?: boolean | null
+          task_id?: string
+          user_id?: string
+          visit_token?: string | null
+          watch_seconds?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_attempts_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tasks: {
         Row: {
           created_at: string
@@ -518,15 +640,20 @@ export type Database = {
           end_date: string | null
           id: string
           is_active: boolean
+          max_attempts: number | null
           max_completions_per_user: number | null
           name: string
+          required_seconds: number | null
           requirements: Json | null
           reward_points: number
           start_date: string | null
+          target_url: string | null
           task_type: Database["public"]["Enums"]["activity_type"]
           total_budget: number | null
           total_claimed: number
           updated_at: string
+          verification_rules: Json | null
+          video_url: string | null
         }
         Insert: {
           created_at?: string
@@ -534,15 +661,20 @@ export type Database = {
           end_date?: string | null
           id?: string
           is_active?: boolean
+          max_attempts?: number | null
           max_completions_per_user?: number | null
           name: string
+          required_seconds?: number | null
           requirements?: Json | null
           reward_points?: number
           start_date?: string | null
+          target_url?: string | null
           task_type?: Database["public"]["Enums"]["activity_type"]
           total_budget?: number | null
           total_claimed?: number
           updated_at?: string
+          verification_rules?: Json | null
+          video_url?: string | null
         }
         Update: {
           created_at?: string
@@ -550,15 +682,20 @@ export type Database = {
           end_date?: string | null
           id?: string
           is_active?: boolean
+          max_attempts?: number | null
           max_completions_per_user?: number | null
           name?: string
+          required_seconds?: number | null
           requirements?: Json | null
           reward_points?: number
           start_date?: string | null
+          target_url?: string | null
           task_type?: Database["public"]["Enums"]["activity_type"]
           total_budget?: number | null
           total_claimed?: number
           updated_at?: string
+          verification_rules?: Json | null
+          video_url?: string | null
         }
         Relationships: []
       }
