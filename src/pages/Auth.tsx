@@ -56,19 +56,22 @@ export default function Auth() {
             .maybeSingle();
 
           if (referrer) {
-            // Update referred_by on the new user's profile
-            await supabase
-              .from("profiles")
-              .update({ referred_by: referrer.id })
-              .eq("user_id", signUpData.user.id);
+            // Block self-referrals
+            if (referrer.user_id === signUpData.user.id) {
+              toast.error("Cannot use your own referral code");
+            } else {
+              // Update referred_by on the new user's profile
+              await supabase
+                .from("profiles")
+                .update({ referred_by: referrer.id })
+                .eq("user_id", signUpData.user.id);
 
-            // Credit referrer with bonus
-            await supabase.from("activities").insert({
-              user_id: referrer.user_id,
-              activity_type: "referral",
-              points_earned: 50,
-              description: `Referral bonus: ${email} signed up`,
-            });
+              // Insert into referrals table for proper tracking
+              await supabase.from("referrals").insert({
+                referrer_id: referrer.user_id,
+                referred_id: signUpData.user.id,
+              });
+            }
           }
         }
         toast.success("Check your email to verify your account!");
@@ -78,12 +81,12 @@ export default function Auth() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-dark">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-dark p-4">
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.5 }}
-        className="w-full max-w-md space-y-8 glass rounded-xl p-8"
+        className="w-full max-w-md space-y-8 glass rounded-xl p-6 sm:p-8"
       >
         <div className="flex flex-col items-center gap-4">
           <BixLogo size="lg" />
