@@ -57,7 +57,8 @@ export default function Referrals() {
     },
   });
 
-  const referralLink = `${window.location.origin}/auth?ref=${referralCode}`;
+  const baseUrl = import.meta.env.VITE_PUBLIC_URL || window.location.origin;
+  const referralLink = `${String(baseUrl).replace(/\/$/, "")}/auth?ref=${referralCode}`;
 
   const copyLink = () => {
     navigator.clipboard.writeText(referralLink);
