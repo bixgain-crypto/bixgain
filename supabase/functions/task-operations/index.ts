@@ -20,26 +20,41 @@ Deno.serve(async (req) => {
     const supabaseAdmin: any = createClient(supabaseUrl, serviceKey);
 
     // Get user from auth header
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return respond({ error: "Unauthorized" }, 401);
-    }
-
-    const anonKey = Deno.env.get("SUPABASE_PUBLISHABLE_KEY") || Deno.env.get("SUPABASE_ANON_KEY") || "";
-    const supabaseUser: any = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-
-    const {
-      data: { user },
-      error: authError,
-    } = await supabaseUser.auth.getUser();
-    if (authError || !user) {
-      return respond({ error: "Invalid token" }, 401);
-    }
-
+    // Read request body early so we can support unauthenticated referral linking
     const body = await req.json();
     const { action } = body;
+
+    const authHeader = req.headers.get("Authorization");
+
+    // Resolve acting user from auth token when present. For the signup
+    // referral flow we may not have a session yet, so allow an
+    // unauthenticated call that passes `new_user_id` for `link_referral`.
+    let user: any = null;
+
+    if (authHeader) {
+      const anonKey = Deno.env.get("SUPABASE_PUBLISHABLE_KEY") || Deno.env.get("SUPABASE_ANON_KEY") || "";
+      const supabaseUser: any = createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: authHeader } },
+      });
+
+      const {
+        data: { user: tokenUser },
+        error: authError,
+      } = await supabaseUser.auth.getUser();
+      if (!authError && tokenUser) {
+        user = tokenUser;
+      }
+    }
+
+    // Support unauthenticated linking immediately after signup when the
+    // client provides the newly created user's id.
+    if (!user && action === "link_referral" && body.new_user_id) {
+      user = { id: body.new_user_id };
+    }
+
+    if (!user) {
+      return respond({ error: "Unauthorized" }, 401);
+    }
 
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
 

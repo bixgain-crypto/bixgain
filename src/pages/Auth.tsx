@@ -50,7 +50,7 @@ export default function Auth() {
         // Link referral server-side (no client-side DB writes)
         if (referralCode && signUpData.user) {
           await supabase.functions.invoke("task-operations", {
-            body: { action: "link_referral", referral_code: referralCode },
+            body: { action: "link_referral", referral_code: referralCode, new_user_id: signUpData.user.id },
           });
         }
         toast.success("Check your email to verify your account!");
