@@ -87,6 +87,28 @@ export default function Admin() {
     },
   });
 
+  // ---- Referral stats ----
+  const { data: referralStats } = useQuery({
+    queryKey: ["admin-referral-stats"],
+    enabled: isAdmin,
+    queryFn: async () => {
+      const { count: total } = await supabase.from("referrals").select("*", { count: "exact", head: true });
+      const { count: qualified } = await supabase.from("referrals").select("*", { count: "exact", head: true }).eq("qualified", true);
+      const { count: pending } = await supabase.from("referrals").select("*", { count: "exact", head: true }).eq("qualified", false);
+      const { count: flagged } = await supabase
+        .from("fraud_flags")
+        .select("*", { count: "exact", head: true })
+        .eq("related_table", "referrals")
+        .eq("status", "open");
+      return {
+        total: total || 0,
+        qualified: qualified || 0,
+        pending: pending || 0,
+        flagged: flagged || 0,
+      };
+    },
+  });
+
   // ---- Reward ledger ----
   const { data: ledger } = useQuery({
     queryKey: ["admin-reward-ledger"],
@@ -187,6 +209,24 @@ export default function Admin() {
             <h2 className="text-xl font-semibold mb-2">Admin Access Required</h2>
             <p className="text-muted-foreground">You don't have admin privileges.</p>
           </div>
+        </div>
+
+        {/* Referral stats */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+          {[
+            { label: "Total Referrals", value: referralStats?.total || 0, icon: Users },
+            { label: "Qualified", value: referralStats?.qualified || 0, icon: CheckCircle2 },
+            { label: "Pending", value: referralStats?.pending || 0, icon: Clock },
+            { label: "Flagged (Fraud)", value: referralStats?.flagged || 0, icon: AlertTriangle },
+          ].map((s, i) => (
+            <motion.div key={s.label} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} className="glass rounded-lg p-4">
+              <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                <s.icon className="h-4 w-4 text-primary" />
+                <span className="text-xs">{s.label}</span>
+              </div>
+              <p className="text-xl sm:text-2xl font-bold font-mono">{s.value}</p>
+            </motion.div>
+          ))}
         </div>
       </AppLayout>
     );
