@@ -32,13 +32,14 @@ export default function Referrals() {
   }, [profile, session, queryClient]);
 
   const { data: referrals } = useQuery({
-    queryKey: ["referrals", profile?.id],
-    enabled: !!profile?.id,
+    queryKey: ["referrals", session?.user?.id],
+    enabled: !!session?.user?.id,
     queryFn: async () => {
       const { data } = await supabase
-        .from("profiles")
-        .select("id, display_name, created_at")
-        .eq("referred_by", profile!.id);
+        .from("referrals")
+        .select("id, referred_id, qualified, qualified_at, reward_granted, created_at")
+        .eq("referrer_id", session!.user.id)
+        .order("created_at", { ascending: false });
       return data || [];
     },
   });
@@ -147,13 +148,15 @@ export default function Referrals() {
                       <Users className="h-4 w-4 text-primary" />
                     </div>
                     <div>
-                      <p className="text-sm font-medium">{r.display_name || "User"}</p>
+                      <p className="text-sm font-medium">Referred User</p>
                       <p className="text-xs text-muted-foreground">
                         Joined {new Date(r.created_at).toLocaleDateString()}
                       </p>
                     </div>
                   </div>
-                  <span className="font-mono text-sm text-primary">+50 BIX</span>
+                  <span className={`font-mono text-sm ${r.qualified ? "text-primary" : "text-muted-foreground"}`}>
+                    {r.qualified ? "+50 BIX" : "Pending"}
+                  </span>
                 </div>
               ))}
             </div>

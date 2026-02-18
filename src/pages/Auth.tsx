@@ -47,32 +47,11 @@ export default function Auth() {
       if (error) {
         toast.error(error.message);
       } else {
-        // If referral code provided, link referral after signup
+        // Link referral server-side (no client-side DB writes)
         if (referralCode && signUpData.user) {
-          const { data: referrer } = await supabase
-            .from("profiles")
-            .select("id, user_id")
-            .eq("referral_code", referralCode)
-            .maybeSingle();
-
-          if (referrer) {
-            // Block self-referrals
-            if (referrer.user_id === signUpData.user.id) {
-              toast.error("Cannot use your own referral code");
-            } else {
-              // Update referred_by on the new user's profile
-              await supabase
-                .from("profiles")
-                .update({ referred_by: referrer.id })
-                .eq("user_id", signUpData.user.id);
-
-              // Insert into referrals table for proper tracking
-              await supabase.from("referrals").insert({
-                referrer_id: referrer.user_id,
-                referred_id: signUpData.user.id,
-              });
-            }
-          }
+          await supabase.functions.invoke("task-operations", {
+            body: { action: "link_referral", referral_code: referralCode },
+          });
         }
         toast.success("Check your email to verify your account!");
       }
