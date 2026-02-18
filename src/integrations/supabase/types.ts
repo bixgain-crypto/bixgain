@@ -397,30 +397,36 @@ export type Database = {
           id: string
           qualified: boolean
           qualified_at: string | null
+          referred_device_id: string | null
           referred_id: string
           referred_ip: string | null
           referrer_id: string
           referrer_ip: string | null
+          reward_granted: boolean
         }
         Insert: {
           created_at?: string
           id?: string
           qualified?: boolean
           qualified_at?: string | null
+          referred_device_id?: string | null
           referred_id: string
           referred_ip?: string | null
           referrer_id: string
           referrer_ip?: string | null
+          reward_granted?: boolean
         }
         Update: {
           created_at?: string
           id?: string
           qualified?: boolean
           qualified_at?: string | null
+          referred_device_id?: string | null
           referred_id?: string
           referred_ip?: string | null
           referrer_id?: string
           referrer_ip?: string | null
+          reward_granted?: boolean
         }
         Relationships: []
       }

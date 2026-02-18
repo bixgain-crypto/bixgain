@@ -14,19 +14,16 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabaseAdmin = createClient(supabaseUrl, serviceKey);
+    const supabaseAdmin: any = createClient(supabaseUrl, serviceKey);
 
     // Get user from auth header
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return respond({ error: "Unauthorized" }, 401);
     }
 
     const anonKey = Deno.env.get("SUPABASE_PUBLISHABLE_KEY") || Deno.env.get("SUPABASE_ANON_KEY") || "";
-    const supabaseUser = createClient(supabaseUrl, anonKey, {
+    const supabaseUser: any = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
 
@@ -35,10 +32,7 @@ Deno.serve(async (req) => {
       error: authError,
     } = await supabaseUser.auth.getUser();
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Invalid token" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return respond({ error: "Invalid token" }, 401);
     }
 
     const body = await req.json();
@@ -61,17 +55,13 @@ Deno.serve(async (req) => {
         return await rejectAttempt(supabaseAdmin, user.id, body);
       case "qualify_referral":
         return await qualifyReferral(supabaseAdmin, user.id, body);
+      case "link_referral":
+        return await linkReferral(supabaseAdmin, user.id, body, ip);
       default:
-        return new Response(JSON.stringify({ error: "Unknown action" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return respond({ error: "Unknown action" }, 400);
     }
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return respond({ error: (err as Error).message }, 500);
   }
 });
 
@@ -82,16 +72,161 @@ function respond(data: unknown, status = 200) {
   });
 }
 
+// ============ Link referral (called after signup) ============
+async function linkReferral(
+  admin: any,
+  userId: string,
+  body: { referral_code: string; device_id?: string },
+  ip: string
+) {
+  const { referral_code, device_id } = body;
+  if (!referral_code) return respond({ error: "referral_code required" }, 400);
+
+  // Look up referrer by referral_code
+  const { data: referrer } = await admin
+    .from("profiles")
+    .select("id, user_id")
+    .eq("referral_code", referral_code)
+    .maybeSingle();
+
+  if (!referrer) return respond({ error: "Invalid referral code" }, 404);
+
+  // Block self-referrals
+  if (referrer.user_id === userId) {
+    return respond({ error: "Cannot use your own referral code" }, 400);
+  }
+
+  // Check if referral already exists
+  const { data: existingRef } = await admin
+    .from("referrals")
+    .select("id")
+    .eq("referrer_id", referrer.user_id)
+    .eq("referred_id", userId)
+    .maybeSingle();
+
+  if (existingRef) {
+    return respond({ success: true, message: "Referral already linked" });
+  }
+
+  // Check daily referral limit
+  const { data: limitSetting } = await admin
+    .from("platform_settings")
+    .select("value")
+    .eq("key", "referral_daily_limit")
+    .maybeSingle();
+
+  const dailyLimit = limitSetting ? parseInt(limitSetting.value, 10) : 10;
+
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { count: todayCount } = await admin
+    .from("referrals")
+    .select("*", { count: "exact", head: true })
+    .eq("referrer_id", referrer.user_id)
+    .gte("created_at", oneDayAgo);
+
+  if (todayCount !== null && todayCount >= dailyLimit) {
+    await admin.from("fraud_flags").insert({
+      user_id: referrer.user_id,
+      flag_type: "referral_daily_limit",
+      reason: `Referrer exceeded daily limit of ${dailyLimit} referrals`,
+      severity: "medium",
+      related_table: "referrals",
+    });
+    return respond({ error: "Referral limit exceeded" }, 429);
+  }
+
+  // Check same-IP fraud: get referrer's IP from their most recent referral
+  const { data: recentRef } = await admin
+    .from("referrals")
+    .select("referred_ip")
+    .eq("referrer_id", referrer.user_id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  // Also get referrer's own IP from their profile creation (use their own referral record if they were referred)
+  if (ip !== "unknown") {
+    // Check if referred user's IP matches referrer's known IPs
+    const { data: sameIpRefs } = await admin
+      .from("referrals")
+      .select("id")
+      .eq("referrer_id", referrer.user_id)
+      .eq("referred_ip", ip)
+      .limit(1);
+
+    if (sameIpRefs && sameIpRefs.length > 0) {
+      await admin.from("fraud_flags").insert({
+        user_id: referrer.user_id,
+        flag_type: "referral_same_ip",
+        reason: `Same IP ${ip} used for multiple referrals`,
+        severity: "high",
+        related_table: "referrals",
+      });
+      return respond({ error: "Referral blocked: suspicious activity" }, 403);
+    }
+  }
+
+  // Check same device_id fraud
+  if (device_id) {
+    const { data: sameDeviceRefs } = await admin
+      .from("referrals")
+      .select("id")
+      .eq("referrer_id", referrer.user_id)
+      .eq("referred_device_id", device_id)
+      .limit(1);
+
+    if (sameDeviceRefs && sameDeviceRefs.length > 0) {
+      await admin.from("fraud_flags").insert({
+        user_id: referrer.user_id,
+        flag_type: "referral_same_device",
+        reason: `Same device_id ${device_id} used for multiple referrals`,
+        severity: "high",
+        related_table: "referrals",
+      });
+      return respond({ error: "Referral blocked: suspicious activity" }, 403);
+    }
+  }
+
+  // Get referrer's IP from their own profile or most recent activity
+  const referrerIp = recentRef?.referred_ip || null;
+
+  // Create referral record -- no reward yet
+  const { error: insertErr } = await admin.from("referrals").insert({
+    referrer_id: referrer.user_id,
+    referred_id: userId,
+    qualified: false,
+    reward_granted: false,
+    referrer_ip: referrerIp,
+    referred_ip: ip !== "unknown" ? ip : null,
+    referred_device_id: device_id || null,
+  });
+
+  if (insertErr) {
+    // Unique constraint violation means already linked
+    if (insertErr.code === "23505") {
+      return respond({ success: true, message: "Referral already linked" });
+    }
+    return respond({ error: insertErr.message }, 500);
+  }
+
+  // Update profile referred_by
+  await admin
+    .from("profiles")
+    .update({ referred_by: referrer.id })
+    .eq("user_id", userId);
+
+  return respond({ success: true, message: "Referral linked successfully" });
+}
+
 // ============ Start a task attempt ============
 async function startAttempt(
-  admin: ReturnType<typeof createClient>,
+  admin: any,
   userId: string,
   body: { task_id: string; device_id?: string },
   ip: string
 ) {
   const { task_id, device_id } = body;
 
-  // Check task exists and is active
   const { data: task } = await admin
     .from("tasks")
     .select("*")
@@ -101,7 +236,6 @@ async function startAttempt(
 
   if (!task) return respond({ error: "Task not found or inactive" }, 404);
 
-  // Check max attempts
   const { count } = await admin
     .from("task_attempts")
     .select("*", { count: "exact", head: true })
@@ -112,7 +246,6 @@ async function startAttempt(
     return respond({ error: "Maximum attempts reached" }, 429);
   }
 
-  // Check for existing started attempt
   const { data: existing } = await admin
     .from("task_attempts")
     .select("id, visit_token")
@@ -125,7 +258,6 @@ async function startAttempt(
     return respond({ attempt_id: existing.id, visit_token: existing.visit_token });
   }
 
-  // Generate visit token for link tasks
   const visit_token = crypto.randomUUID();
 
   const { data: attempt, error } = await admin
@@ -156,7 +288,7 @@ async function startAttempt(
 
 // ============ Submit proof (screenshot/text) ============
 async function submitProof(
-  admin: ReturnType<typeof createClient>,
+  admin: any,
   userId: string,
   body: { attempt_id: string; proof_url?: string; proof_text?: string }
 ) {
@@ -188,7 +320,7 @@ async function submitProof(
 
 // ============ Verify link visit ============
 async function verifyLinkVisit(
-  admin: ReturnType<typeof createClient>,
+  admin: any,
   userId: string,
   body: { attempt_id: string; visit_token: string; elapsed_seconds: number }
 ) {
@@ -204,7 +336,7 @@ async function verifyLinkVisit(
 
   if (!attempt) return respond({ error: "Invalid attempt or token" }, 404);
 
-  const requiredSeconds = (attempt as any).tasks?.required_seconds || 10;
+  const requiredSeconds = attempt.tasks?.required_seconds || 10;
 
   if (elapsed_seconds < requiredSeconds) {
     return respond({
@@ -213,7 +345,6 @@ async function verifyLinkVisit(
     }, 400);
   }
 
-  // Auto-approve link visits that meet the time requirement
   const { error } = await admin
     .from("task_attempts")
     .update({ status: "approved", reviewed_at: new Date().toISOString() })
@@ -221,16 +352,18 @@ async function verifyLinkVisit(
 
   if (error) return respond({ error: error.message }, 500);
 
-  // Award reward
-  const reward = (attempt as any).tasks?.reward_points || 0;
+  const reward = attempt.tasks?.reward_points || 0;
   await awardReward(admin, userId, reward, "task_completion", attempt_id);
+
+  // Check referral qualification after first approved task
+  await checkReferralQualification(admin, userId);
 
   return respond({ success: true, status: "approved", reward });
 }
 
 // ============ Verify video watch ============
 async function verifyVideoWatch(
-  admin: ReturnType<typeof createClient>,
+  admin: any,
   userId: string,
   body: { attempt_id: string; watch_seconds: number }
 ) {
@@ -245,13 +378,12 @@ async function verifyVideoWatch(
 
   if (!attempt) return respond({ error: "Attempt not found" }, 404);
 
-  // Update watch progress
   await admin
     .from("task_attempts")
     .update({ watch_seconds })
     .eq("id", attempt_id);
 
-  const requiredSeconds = (attempt as any).tasks?.required_seconds || 30;
+  const requiredSeconds = attempt.tasks?.required_seconds || 30;
 
   if (watch_seconds < requiredSeconds) {
     return respond({
@@ -260,25 +392,26 @@ async function verifyVideoWatch(
     });
   }
 
-  // Auto-approve
   await admin
     .from("task_attempts")
     .update({ status: "approved", watch_seconds, reviewed_at: new Date().toISOString() })
     .eq("id", attempt_id);
 
-  const reward = (attempt as any).tasks?.reward_points || 0;
+  const reward = attempt.tasks?.reward_points || 0;
   await awardReward(admin, userId, reward, "task_completion", attempt_id);
+
+  // Check referral qualification after first approved task
+  await checkReferralQualification(admin, userId);
 
   return respond({ success: true, status: "approved", reward });
 }
 
 // ============ Admin: Approve attempt ============
 async function approveAttempt(
-  admin: ReturnType<typeof createClient>,
+  admin: any,
   adminUserId: string,
   body: { attempt_id: string; notes?: string }
 ) {
-  // Verify admin
   const { data: isAdmin } = await admin.rpc("is_admin", { _user_id: adminUserId });
   if (!isAdmin) return respond({ error: "Not authorized" }, 403);
 
@@ -300,10 +433,9 @@ async function approveAttempt(
     })
     .eq("id", body.attempt_id);
 
-  const reward = (attempt as any).tasks?.reward_points || 0;
+  const reward = attempt.tasks?.reward_points || 0;
   await awardReward(admin, attempt.user_id, reward, "task_completion", body.attempt_id);
 
-  // Log audit
   await admin.from("admin_audit_log").insert({
     admin_user_id: adminUserId,
     action: "approve_attempt",
@@ -320,7 +452,7 @@ async function approveAttempt(
 
 // ============ Admin: Reject attempt ============
 async function rejectAttempt(
-  admin: ReturnType<typeof createClient>,
+  admin: any,
   adminUserId: string,
   body: { attempt_id: string; reason?: string }
 ) {
@@ -350,50 +482,52 @@ async function rejectAttempt(
   return respond({ success: true });
 }
 
-// ============ Qualify referral ============
+// ============ Admin: Qualify referral manually ============
 async function qualifyReferral(
-  admin: ReturnType<typeof createClient>,
+  admin: any,
   userId: string,
   body: { referral_id?: string }
 ) {
-  // This is called internally or by admin
   const { data: isAdmin } = await admin.rpc("is_admin", { _user_id: userId });
   if (!isAdmin) return respond({ error: "Not authorized" }, 403);
 
-  if (body.referral_id) {
-    const { data: ref } = await admin
-      .from("referrals")
-      .select("*")
-      .eq("id", body.referral_id)
-      .eq("qualified", false)
-      .maybeSingle();
+  if (!body.referral_id) return respond({ error: "referral_id required" }, 400);
 
-    if (!ref) return respond({ error: "Referral not found or already qualified" }, 404);
+  const { data: ref } = await admin
+    .from("referrals")
+    .select("*")
+    .eq("id", body.referral_id)
+    .eq("qualified", false)
+    .maybeSingle();
 
-    await admin
-      .from("referrals")
-      .update({ qualified: true, qualified_at: new Date().toISOString() })
-      .eq("id", body.referral_id);
+  if (!ref) return respond({ error: "Referral not found or already qualified" }, 404);
 
-    await awardReward(admin, ref.referrer_id, 50, "referral", body.referral_id);
-
-    return respond({ success: true });
+  if (ref.reward_granted) {
+    return respond({ error: "Reward already granted" }, 400);
   }
 
-  return respond({ error: "referral_id required" }, 400);
+  await admin
+    .from("referrals")
+    .update({ qualified: true, qualified_at: new Date().toISOString(), reward_granted: true })
+    .eq("id", body.referral_id);
+
+  await awardReward(admin, ref.referrer_id, 50, "referral", body.referral_id);
+
+  return respond({ success: true });
 }
 
-// ============ Check referral qualification ============
+// ============ Check referral qualification (auto) ============
 async function checkReferralQualification(
-  admin: ReturnType<typeof createClient>,
+  admin: any,
   userId: string
 ) {
-  // Check if this user was referred and has completed their first task
+  // Check if this user was referred and referral not yet qualified/rewarded
   const { data: referral } = await admin
     .from("referrals")
     .select("*")
     .eq("referred_id", userId)
     .eq("qualified", false)
+    .eq("reward_granted", false)
     .maybeSingle();
 
   if (!referral) return;
@@ -405,33 +539,69 @@ async function checkReferralQualification(
     .eq("user_id", userId)
     .eq("status", "approved");
 
-  if (count && count >= 1) {
-    // Check IP fraud
-    if (referral.referrer_ip && referral.referred_ip && referral.referrer_ip === referral.referred_ip) {
-      // Flag as suspicious
+  if (!count || count < 1) return;
+
+  // IP fraud check
+  if (referral.referrer_ip && referral.referred_ip && referral.referrer_ip === referral.referred_ip) {
+    await admin.from("fraud_flags").insert({
+      user_id: referral.referrer_id,
+      flag_type: "referral_ip_match",
+      reason: `Referrer and referred user share IP: ${referral.referrer_ip}`,
+      severity: "high",
+      related_id: referral.id,
+      related_table: "referrals",
+    });
+    return;
+  }
+
+  // Device fraud check
+  if (referral.referred_device_id) {
+    const { data: deviceMatch } = await admin
+      .from("referrals")
+      .select("id")
+      .eq("referrer_id", referral.referrer_id)
+      .eq("referred_device_id", referral.referred_device_id)
+      .neq("id", referral.id)
+      .limit(1);
+
+    if (deviceMatch && deviceMatch.length > 0) {
       await admin.from("fraud_flags").insert({
         user_id: referral.referrer_id,
-        flag_type: "referral_ip_match",
-        reason: `Referrer and referred user share IP: ${referral.referrer_ip}`,
+        flag_type: "referral_device_match",
+        reason: `Same device used for multiple referrals: ${referral.referred_device_id}`,
         severity: "high",
         related_id: referral.id,
         related_table: "referrals",
       });
       return;
     }
-
-    await admin
-      .from("referrals")
-      .update({ qualified: true, qualified_at: new Date().toISOString() })
-      .eq("id", referral.id);
-
-    await awardReward(admin, referral.referrer_id, 50, "referral", referral.id);
   }
+
+  // Check for open fraud flags on either user
+  const { count: fraudCount } = await admin
+    .from("fraud_flags")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", referral.referrer_id)
+    .eq("status", "open");
+
+  if (fraudCount && fraudCount > 0) return;
+
+  // All checks passed - qualify and reward
+  await admin
+    .from("referrals")
+    .update({
+      qualified: true,
+      qualified_at: new Date().toISOString(),
+      reward_granted: true,
+    })
+    .eq("id", referral.id);
+
+  await awardReward(admin, referral.referrer_id, 50, "referral", referral.id);
 }
 
 // ============ Award reward into ledger + wallet ============
 async function awardReward(
-  admin: ReturnType<typeof createClient>,
+  admin: any,
   userId: string,
   amount: number,
   reason: string,
@@ -445,17 +615,10 @@ async function awardReward(
     amount,
     reason,
     reference_id: referenceId,
-    reference_type: "task_attempt",
+    reference_type: reason === "referral" ? "referral" : "task_attempt",
   });
 
-  // Also update wallet balance for quick reads
-  await admin
-    .from("wallets")
-    .update({ balance: admin.rpc ? undefined : undefined })
-    .eq("user_id", userId)
-    .eq("wallet_type", "bix");
-
-  // Direct SQL-like update via RPC isn't available, use raw increment
+  // Update wallet balance (read-then-write)
   const { data: wallet } = await admin
     .from("wallets")
     .select("balance")
@@ -473,7 +636,7 @@ async function awardReward(
       .eq("is_primary", true);
   }
 
-  // Also insert activity for dashboard tracking
+  // Insert activity for dashboard tracking
   await admin.from("activities").insert({
     user_id: userId,
     activity_type: reason === "referral" ? "referral" : "task_completion",
