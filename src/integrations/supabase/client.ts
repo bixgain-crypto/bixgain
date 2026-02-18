@@ -5,13 +5,32 @@ import type { Database } from './types';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
+// IMPORTANT SECURITY NOTE:
+// Storing auth tokens in `localStorage` exposes them to theft via XSS.
+// For production, prefer an HttpOnly cookie-based session strategy (server-managed).
+// See docs/supabase-cookie-auth.md for a short guide and example.
+
+const USE_COOKIE_AUTH = import.meta.env.VITE_USE_COOKIE_AUTH === 'true';
+
+// If `VITE_USE_COOKIE_AUTH` is enabled, the client will avoid persisting
+// sessions to `localStorage`. Proper cookie-based auth requires server support
+// (set HttpOnly cookies from your server/edge function and disable client-side
+// refresh). If you enable cookie auth, follow the documentation linked above.
+const authConfig = USE_COOKIE_AUTH
+  ? {
+      storage: undefined,
+      persistSession: false,
+      autoRefreshToken: false,
+    }
+  : {
+      storage: localStorage,
+      persistSession: true,
+      autoRefreshToken: true,
+    };
+
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-  auth: {
-    storage: localStorage,
-    persistSession: true,
-    autoRefreshToken: true,
-  }
+  auth: authConfig,
 });
