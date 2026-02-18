@@ -10,6 +10,7 @@ import {
   Users,
   Menu,
   X,
+  Rocket,
 } from "lucide-react";
 import { BixLogo } from "./BixLogo";
 import { useAuth } from "@/hooks/useAuth";
@@ -21,6 +22,7 @@ const navItems = [
   { href: "/tasks", label: "Tasks", icon: ListTodo },
   { href: "/spin", label: "Spin & Earn", icon: Sparkles },
   { href: "/wallet", label: "Wallet", icon: Wallet },
+  { href: "/wallet#staking", label: "Staking", icon: Rocket },
   { href: "/referrals", label: "Referrals", icon: Users },
   { href: "/claims", label: "Coming Soon", icon: ArrowUpRight },
 ];

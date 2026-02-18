@@ -159,6 +159,7 @@ export default function WalletPage() {
             <TabsTrigger value="send">Send</TabsTrigger>
             <TabsTrigger value="receive">Receive</TabsTrigger>
             <TabsTrigger value="store">Store</TabsTrigger>
+            <TabsTrigger value="staking">Staking</TabsTrigger>
           </TabsList>
 
           {/* Transaction History */}
@@ -269,6 +270,15 @@ export default function WalletPage() {
           {/* Store - Coming Soon */}
           <TabsContent value="store">
             <ComingSoonCard icon={Store} title="BIX Store" desc="Redeem your BIX tokens for exclusive rewards, merchandise, gift cards and more." />
+          </TabsContent>
+
+          {/* Staking - Coming Soon */}
+          <TabsContent value="staking">
+            <ComingSoonCard
+              icon={Rocket}
+              title="Staking"
+              desc="Stake your BIX tokens to earn rewards and boost yields — lock for higher APRs and claim periodic rewards."
+            />
           </TabsContent>
         </Tabs>
       </div>

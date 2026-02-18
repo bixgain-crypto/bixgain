@@ -18,12 +18,13 @@ export default function Referrals() {
     if (profile?.referral_code) {
       setReferralCode(profile.referral_code);
     } else if (session?.user?.id && !profile?.referral_code) {
-      // Generate referral code if not exists
+      // Generate referral code if not exists. Use upsert so a missing profile
+      // row will be created (common when auth user exists but profile row
+      // hasn't been created yet).
       const code = `BIX${session.user.id.substring(0, 8).toUpperCase()}`;
       supabase
         .from("profiles")
-        .update({ referral_code: code })
-        .eq("user_id", session.user.id)
+        .upsert({ user_id: session.user.id, referral_code: code }, { onConflict: "user_id" })
         .then(() => {
           setReferralCode(code);
           queryClient.invalidateQueries({ queryKey: ["profile"] });
