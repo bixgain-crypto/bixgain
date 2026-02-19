@@ -1,106 +1,73 @@
 
 
-# Fix Referral System Backend Logic
+# Fix: Referral Rewards Not Being Granted
 
-## Problems Identified
+## Root Cause Analysis
 
-1. **Referral linking runs client-side** in `Auth.tsx` -- easily bypassed, races with profile creation trigger, and can't capture IP/device info
-2. **No `reward_granted` column** on referrals table to prevent duplicate rewards
-3. **No `referred_device_id` column** for device fraud checks
-4. **No daily referral limit** enforcement
-5. **Edge function `checkReferralQualification`** doesn't check device_id fraud
-6. **`awardReward` has a broken no-op wallet update** line and race condition on balance increment
-7. **Build errors** in edge function due to untyped Supabase client (all `never` type errors)
+After analyzing the database and code, here are the issues preventing referral rewards:
 
-## Plan
+### Issue 1: No referral records exist
+The `referrals` table is completely empty. No user has signed up through a `?ref=` link yet in the current system, so there are no referrals to reward.
 
-### 1. Database Migration
+### Issue 2: Task attempts never reach "approved" status
+All 5 `task_attempts` records are stuck in "started" status. The `Tasks.tsx` frontend completes tasks by directly inserting into the `activities` table (bypassing the edge function), so `task_attempts.status` is never updated to "approved". Since `checkReferralQualification` requires at least one approved attempt, referrals can never qualify.
 
-Add columns to `referrals` table:
-- `reward_granted boolean DEFAULT false` -- prevents duplicate reward payouts
-- `referred_device_id text` -- for device fraud check
+### Issue 3: Double/triple reward crediting
+The `awardReward` edge function both:
+- Inserts into `activities` (which fires the `credit_wallet_on_activity` trigger, auto-crediting the wallet)
+- Manually updates wallet balance
 
-Add a unique constraint on `(referrer_id, referred_id)` to prevent duplicate referral records.
+This means every edge-function reward would be credited TWICE to the wallet. Meanwhile, `Tasks.tsx` also inserts into `activities` directly (a third path), creating further confusion.
 
-Add a `referral_daily_limits` platform setting (or use existing `reward_limits` table) with a default of 10 referrals per day per referrer.
+### Issue 4: Tasks.tsx never triggers referral qualification
+The frontend task flow never calls `checkReferralQualification`. Only the edge function paths do.
 
-### 2. Rewrite Edge Function (`task-operations/index.ts`)
+## Fix Plan
 
-**Fix all TypeScript errors** by using `any` typed client (the untyped `createClient` from esm.sh doesn't know the DB schema):
+### Step 1: Fix `awardReward` -- Remove manual wallet update (double-credit bug)
 
-```text
-const supabaseAdmin: any = createClient(supabaseUrl, serviceKey);
-```
+Since the `credit_wallet_on_activity` trigger already handles wallet balance updates when an `activities` row is inserted, the manual wallet update in `awardReward` must be removed. Otherwise every reward is counted twice.
 
-**Add new action: `link_referral`** -- called from Auth.tsx after signup instead of doing client-side DB writes:
-- Accepts `referral_code`, `referred_user_id`
-- Captures IP from request headers
-- Looks up referrer by `referral_code` in `profiles`
-- Blocks self-referrals (referrer.user_id === referred_user_id)
-- Blocks same-IP (compare with referrer's last known IP from previous referrals)
-- Blocks same device_id
-- Enforces daily referral limit (max 10 new referrals per referrer per day)
-- Creates referral record with `referrer_ip`, `referred_ip`, `referred_device_id`
-- Updates profile `referred_by`
-- Does NOT award any reward
+### Step 2: Fix `Tasks.tsx` -- Route task completions through edge function
 
-**Fix `checkReferralQualification`**:
-- Add `reward_granted` check to prevent duplicates
-- Add device_id fraud check
-- Set `reward_granted = true` when awarding
+Update the task completion flow in `Tasks.tsx` so that when a task is verified (link visit, video watch, or social follow proof), it:
+- Calls the edge function to update `task_attempts.status` to "approved"
+- The edge function then calls `checkReferralQualification` automatically
+- Remove direct `activities` inserts from the frontend
 
-**Fix `awardReward`**:
-- Remove broken no-op wallet update line
-- Keep the read-then-write balance update (already works)
+### Step 3: Fix task completion paths in edge function
 
-**Fix error handler**: `(err as Error).message`
+For `verifyLinkVisit` and `verifyVideoWatch`: these already work correctly (mark attempt approved, award, check referral). No changes needed.
 
-### 3. Update Auth.tsx (minimal change)
+For social follow tasks: after admin approval via `approveAttempt`, it already calls `checkReferralQualification`. No changes needed.
 
-Replace the client-side referral DB writes with a single call to the edge function:
+### Step 4: Clean up stale "started" task_attempts
 
-```typescript
-if (referralCode && signUpData.user) {
-  await supabase.functions.invoke("task-operations", {
-    body: { action: "link_referral", referral_code: referralCode }
-  });
-}
-```
-
-Remove all direct Supabase table queries for referral linking from the frontend.
-
-### 4. Referrals.tsx (no UI changes, fix data query)
-
-Update the referrals list query to use the `referrals` table directly instead of querying `profiles.referred_by`, so it shows qualification status accurately. The display stays identical.
+The 5 existing "started" attempts should remain as-is (they represent incomplete tasks).
 
 ## Technical Details
 
-### New/Modified Files
+### Files to modify
 
 | File | Change |
 |------|--------|
-| `supabase/migrations/...` | Add `reward_granted`, `referred_device_id` columns; unique constraint |
-| `supabase/functions/task-operations/index.ts` | Fix types, add `link_referral` action, fix `checkReferralQualification`, fix `awardReward` |
-| `src/pages/Auth.tsx` | Replace client-side referral logic with edge function call |
-| `src/pages/Referrals.tsx` | Query `referrals` table for list + show qualified status |
+| `supabase/functions/task-operations/index.ts` | Remove manual wallet update from `awardReward` (lines 640-655) to prevent double-crediting |
+| `src/pages/Tasks.tsx` | Replace direct `activities` inserts with edge function calls for `verify_link_visit`, `verify_video_watch`, and `submit_proof`; remove client-side reward logic |
 
-### Fraud Checks (all server-side)
+### What will work after the fix
 
-- Self-referral: `referrer.user_id === referred_user_id` blocked
-- Same IP: compare `referrer_ip` from most recent referral by this referrer
-- Same device_id: compare `referred_device_id`
-- Daily limit: count referrals by referrer in last 24h, cap at 10
-- All violations create a `fraud_flags` entry
+1. User A shares referral link
+2. User B signs up with `?ref=` code -- `link_referral` edge function creates a referral record (qualified=false, reward_granted=false)
+3. User B completes a task -- edge function marks `task_attempts.status = approved`
+4. Edge function calls `checkReferralQualification` -- finds User B's referral, sees they have an approved attempt, passes fraud checks, marks qualified=true, reward_granted=true, and awards 50 BIX to User A via `reward_ledger` and `activities` (which triggers the wallet update automatically)
 
-### Reward Flow
+### Reward crediting path (single source of truth)
 
 ```text
-Signup with ?ref= --> link_referral (edge fn) --> referral record created (qualified=false, reward_granted=false)
-                                                  No reward yet
+awardReward() 
+  --> inserts into activities table
+  --> credit_wallet_on_activity trigger fires automatically
+  --> wallet balance updated
 
-Task approved --> checkReferralQualification --> if first approved task AND no fraud flags:
-                                                  set qualified=true, qualified_at=now()
-                                                  insert reward_ledger entry (50 BIX)
-                                                  set reward_granted=true
-                                                  update wallet balance
+No manual wallet update needed.
 ```
