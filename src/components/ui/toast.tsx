@@ -7,23 +7,49 @@ import { cn } from "@/lib/utils";
 
 const ToastProvider = ToastPrimitives.Provider;
 
+// Fun floating toast viewport
 const ToastViewport = React.forwardRef<
   React.ElementRef<typeof ToastPrimitives.Viewport>,
   React.ComponentPropsWithoutRef<typeof ToastPrimitives.Viewport>
->(({ className, ...props }, ref) => (
-  <ToastPrimitives.Viewport
-    ref={ref}
-    className={cn(
-      "fixed top-0 z-[100] flex max-h-screen w-full flex-col-reverse p-4 sm:bottom-0 sm:right-0 sm:top-auto sm:flex-col md:max-w-[420px]",
-      className,
-    )}
-    {...props}
-  />
-));
+>(({ className, style, ...props }, ref) => {
+  // Generate a random position for each render
+  const [pos, setPos] = React.useState({
+    top: Math.random() * 60 + 10, // 10% to 70% from top
+    left: Math.random() * 60 + 10, // 10% to 70% from left
+  });
+  React.useEffect(() => {
+    // On each mount, randomize position
+    setPos({
+      top: Math.random() * 60 + 10,
+      left: Math.random() * 60 + 10,
+    });
+  }, []);
+  return (
+    <ToastPrimitives.Viewport
+      ref={ref}
+      style={{
+        position: 'fixed',
+        top: `${pos.top}%`,
+        left: `${pos.left}%`,
+        transform: 'translate(-50%, -50%)',
+        zIndex: 100,
+        maxWidth: '90vw',
+        minWidth: '180px',
+        width: 'fit-content',
+        ...style,
+      }}
+      className={cn(
+        'flex flex-col items-center pointer-events-none',
+        className,
+      )}
+      {...props}
+    />
+  );
+});
 ToastViewport.displayName = ToastPrimitives.Viewport.displayName;
 
 const toastVariants = cva(
-  "group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-md border p-6 pr-8 shadow-lg transition-all data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-[var(--radix-toast-swipe-end-x)] data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)] data-[swipe=move]:transition-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out data-[state=closed]:fade-out-80 data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-top-full data-[state=open]:sm:slide-in-from-bottom-full",
+  "group pointer-events-auto relative flex items-center justify-between space-x-2 overflow-hidden rounded-lg border p-3 pr-6 shadow-lg transition-all text-xs sm:text-sm min-w-[180px] max-w-[90vw] bg-background/90 backdrop-blur-md data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-[var(--radix-toast-swipe-end-x)] data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)] data-[swipe=move]:transition-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out data-[state=closed]:fade-out-80",
   {
     variants: {
       variant: {
