@@ -531,7 +531,7 @@ async function qualifyReferral(
     .update({ qualified: true, qualified_at: new Date().toISOString(), reward_granted: true })
     .eq("id", body.referral_id);
 
-  await awardReward(admin, ref.referrer_id, 50, "referral", body.referral_id);
+  await awardReward(admin, ref.referrer_id, 100, "referral", body.referral_id);
 
   return respond({ success: true });
 }
@@ -616,7 +616,7 @@ async function checkReferralQualification(
     })
     .eq("id", referral.id);
 
-  await awardReward(admin, referral.referrer_id, 50, "referral", referral.id);
+  await awardReward(admin, referral.referrer_id, 100, "referral", referral.id);
 }
 
 // ============ Award reward into ledger + wallet ============

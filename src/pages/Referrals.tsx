@@ -80,7 +80,7 @@ export default function Referrals() {
             Referral Program
           </h1>
           <p className="mt-1 text-muted-foreground">
-            Invite friends and earn 50 BIX for each signup!
+            Invite friends and earn 100 BIX for each signup!
           </p>
         </motion.div>
 
@@ -98,7 +98,7 @@ export default function Referrals() {
           </motion.div>
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="glass rounded-lg p-6 text-center">
             <Share2 className="h-6 w-6 text-primary mx-auto mb-2" />
-            <p className="text-3xl font-bold font-mono">50</p>
+            <p className="text-3xl font-bold font-mono">100</p>
             <p className="text-sm text-muted-foreground">BIX Per Referral</p>
           </motion.div>
         </div>
@@ -157,7 +157,7 @@ export default function Referrals() {
                     </div>
                   </div>
                   <span className={`font-mono text-sm ${r.qualified ? "text-primary" : "text-muted-foreground"}`}>
-                    {r.qualified ? "+50 BIX" : "Pending"}
+                    {r.qualified ? "+100 BIX" : "Pending"}
                   </span>
                 </div>
               ))}
