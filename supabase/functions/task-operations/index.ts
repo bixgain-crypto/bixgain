@@ -254,16 +254,7 @@ async function startAttempt(
 
   if (!task) return respond({ error: "Task not found or inactive" }, 404);
 
-  const { count } = await admin
-    .from("task_attempts")
-    .select("*", { count: "exact", head: true })
-    .eq("user_id", userId)
-    .eq("task_id", task_id);
-
-  if (count !== null && task.max_attempts && count >= task.max_attempts) {
-    return respond({ error: "Maximum attempts reached" }, 429);
-  }
-
+  // Check for existing "started" attempt FIRST so "Continue" always works
   const { data: existing } = await admin
     .from("task_attempts")
     .select("id, visit_token")
@@ -274,6 +265,17 @@ async function startAttempt(
 
   if (existing) {
     return respond({ attempt_id: existing.id, visit_token: existing.visit_token });
+  }
+
+  // Only check max_attempts when creating a NEW attempt
+  const { count } = await admin
+    .from("task_attempts")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("task_id", task_id);
+
+  if (count !== null && task.max_attempts && count >= task.max_attempts) {
+    return respond({ error: "Maximum attempts reached" }, 429);
   }
 
   const visit_token = crypto.randomUUID();
