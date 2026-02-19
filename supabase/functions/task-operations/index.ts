@@ -636,25 +636,10 @@ async function awardReward(
     reference_type: reason === "referral" ? "referral" : "task_attempt",
   });
 
-  // Update wallet balance (read-then-write)
-  const { data: wallet } = await admin
-    .from("wallets")
-    .select("balance")
-    .eq("user_id", userId)
-    .eq("wallet_type", "bix")
-    .eq("is_primary", true)
-    .maybeSingle();
+  // Wallet balance is updated automatically by the credit_wallet_on_activity
+  // trigger when the activities row is inserted below. No manual update needed.
 
-  if (wallet) {
-    await admin
-      .from("wallets")
-      .update({ balance: Number(wallet.balance) + amount, updated_at: new Date().toISOString() })
-      .eq("user_id", userId)
-      .eq("wallet_type", "bix")
-      .eq("is_primary", true);
-  }
-
-  // Insert activity for dashboard tracking
+  // Insert activity for dashboard tracking (triggers wallet credit automatically)
   await admin.from("activities").insert({
     user_id: userId,
     activity_type: reason === "referral" ? "referral" : "task_completion",
