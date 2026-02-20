@@ -580,6 +580,98 @@ export type Database = {
         }
         Relationships: []
       }
+      stakes: {
+        Row: {
+          accrued_reward: number
+          amount: number
+          completed_at: string | null
+          created_at: string
+          id: string
+          last_accrual_at: string
+          matures_at: string
+          plan_id: string
+          staked_at: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          accrued_reward?: number
+          amount: number
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          last_accrual_at?: string
+          matures_at: string
+          plan_id: string
+          staked_at?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          accrued_reward?: number
+          amount?: number
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          last_accrual_at?: string
+          matures_at?: string
+          plan_id?: string
+          staked_at?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stakes_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "staking_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staking_plans: {
+        Row: {
+          apy_rate: number
+          created_at: string
+          duration_days: number
+          early_unstake_penalty: number
+          id: string
+          is_active: boolean
+          max_amount: number | null
+          min_amount: number
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          apy_rate?: number
+          created_at?: string
+          duration_days: number
+          early_unstake_penalty?: number
+          id?: string
+          is_active?: boolean
+          max_amount?: number | null
+          min_amount?: number
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          apy_rate?: number
+          created_at?: string
+          duration_days?: number
+          early_unstake_penalty?: number
+          id?: string
+          is_active?: boolean
+          max_amount?: number | null
+          min_amount?: number
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       task_attempts: {
         Row: {
           created_at: string
