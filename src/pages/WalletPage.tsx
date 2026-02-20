@@ -13,9 +13,9 @@ import {
   Clock,
   CheckCircle2,
   XCircle,
-  Rocket,
   Sparkles,
 } from "lucide-react";
+import StakingTab from "@/components/StakingTab";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -272,13 +272,9 @@ export default function WalletPage() {
             <ComingSoonCard icon={Store} title="BIX Store" desc="Redeem your BIX tokens for exclusive rewards, merchandise, gift cards and more." />
           </TabsContent>
 
-          {/* Staking - Coming Soon */}
+          {/* Staking */}
           <TabsContent value="staking">
-            <ComingSoonCard
-              icon={Rocket}
-              title="Staking"
-              desc="Stake your BIX tokens to earn rewards and boost yields — lock for higher APRs and claim periodic rewards."
-            />
+            <StakingTab />
           </TabsContent>
         </Tabs>
       </div>
