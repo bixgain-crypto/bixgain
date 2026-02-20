@@ -24,7 +24,6 @@ const navItems = [
   { href: "/wallet", label: "Wallet", icon: Wallet },
   { href: "/wallet#staking", label: "Staking", icon: Rocket },
   { href: "/referrals", label: "Referrals", icon: Users },
-  { href: "/about", label: "About", icon: Shield },
   { href: "/claims", label: "Coming Soon", icon: ArrowUpRight },
 ];
 
