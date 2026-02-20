@@ -133,12 +133,8 @@ export default function Tasks() {
           .from("task-proofs")
           .upload(path, proofFile, { upsert: true });
         if (uploadErr) throw uploadErr;
-        // Use signed URL for private access
-        const { data: signedUrlData, error: signedUrlErr } = await supabase.storage
-          .from("task-proofs")
-          .createSignedUrl(path, 60 * 60); // 1 hour expiry
-        if (signedUrlErr) throw signedUrlErr;
-        proof_url = signedUrlData.signedUrl;
+        const { data: urlData } = supabase.storage.from("task-proofs").getPublicUrl(path);
+        proof_url = urlData.publicUrl;
       }
 
       await invokeTaskOperation("submit_proof", {
