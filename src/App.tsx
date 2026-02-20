@@ -26,9 +26,11 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/dashboard" element={<Dashboard />} />
+           <Route path="/about" element={<About />} />
           <Route path="/tasks" element={<Tasks />} />
           <Route path="/wallet" element={<WalletPage />} />
           <Route path="/claims" element={<Claims />} />
+          import About from "./pages/About";
           <Route path="/spin" element={<SpinToEarn />} />
           <Route path="/referrals" element={<Referrals />} />
           <Route path="/admin" element={<Admin />} />
