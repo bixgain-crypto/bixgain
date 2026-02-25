@@ -12,6 +12,7 @@ export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [username, setUsername] = useState("");
   const [referralCode, setReferralCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [searchParams] = useSearchParams();
@@ -41,7 +42,10 @@ export default function Auth() {
         email,
         password,
         options: {
-          data: { referral_code: referralCode || undefined },
+          data: {
+            username: username.trim() || email.split("@")[0] || undefined,
+            referral_code: referralCode || undefined,
+          },
         },
       });
       if (error) {
@@ -100,6 +104,20 @@ export default function Auth() {
               className="bg-secondary border-border"
             />
           </div>
+
+          {!isLogin && (
+            <div className="space-y-2">
+              <Label htmlFor="username">Username</Label>
+              <Input
+                id="username"
+                type="text"
+                placeholder="yourname"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="bg-secondary border-border"
+              />
+            </div>
+          )}
 
           {!isLogin && (
             <div className="space-y-2">
