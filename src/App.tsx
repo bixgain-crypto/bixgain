@@ -10,6 +10,7 @@ import Tasks from "./pages/Tasks";
 import Profile from "./pages/Profile";
 import Leaderboard from "./pages/Leaderboard";
 import Store from "./pages/Store";
+import Boosts from "./pages/Boosts";
 import Admin from "./pages/Admin";
 import SpinToEarn from "./pages/SpinToEarn";
 import NotFound from "./pages/NotFound";
@@ -30,6 +31,7 @@ const App = () => (
           <Route path="/missions" element={<Tasks />} />
           <Route path="/tasks" element={<Navigate to="/missions" replace />} />
           <Route path="/spin" element={<SpinToEarn />} />
+          <Route path="/boosts" element={<Boosts />} />
           <Route path="/leaderboard" element={<Leaderboard />} />
           <Route path="/store" element={<Store />} />
           <Route path="/wallet" element={<Navigate to="/store" replace />} />
