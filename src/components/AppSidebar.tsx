@@ -1,16 +1,15 @@
 import { Link, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
-  ListTodo,
-  Wallet,
-  ArrowUpRight,
+  UserCircle2,
+  Target,
+  Orbit,
+  Trophy,
+  ShoppingBag,
   Shield,
   LogOut,
-  Sparkles,
-  Users,
   Menu,
   X,
-  Rocket,
 } from "lucide-react";
 import { BixLogo } from "./BixLogo";
 import { useAuth } from "@/hooks/useAuth";
@@ -19,12 +18,11 @@ import { useState, useEffect } from "react";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/tasks", label: "Tasks", icon: ListTodo },
-  { href: "/spin", label: "Spin & Earn", icon: Sparkles },
-  { href: "/wallet", label: "Wallet", icon: Wallet },
-  { href: "/wallet#staking", label: "Staking", icon: Rocket },
-  { href: "/referrals", label: "Referrals", icon: Users },
-  { href: "/claims", label: "Coming Soon", icon: ArrowUpRight },
+  { href: "/profile", label: "Profile", icon: UserCircle2 },
+  { href: "/missions", label: "Missions", icon: Target },
+  { href: "/spin", label: "Daily Boost", icon: Orbit },
+  { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
+  { href: "/store", label: "Bix Store", icon: ShoppingBag },
 ];
 
 export function AppSidebar() {
@@ -53,7 +51,7 @@ export function AppSidebar() {
 
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         {navItems.map((item) => {
-          const isActive = location.pathname === item.href;
+          const isActive = location.pathname.startsWith(item.href);
           return (
             <Link
               key={item.href}
