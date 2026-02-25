@@ -1,132 +1,77 @@
 import { AppLayout } from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { claimDailyReward } from "@/lib/progressionApi";
 import { formatXp } from "@/lib/progression";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
-import { Clock, Orbit, RotateCw, Sparkles } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Orbit, RotateCw, Sparkles } from "lucide-react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
-type WheelReward = {
-  label: string;
+const WHEEL_LABELS = ["+25 XP", "+50 XP", "+75 XP", "XP Boost", "Mission Reset", "Streak Bonus"];
+const SEGMENT_ANGLE = 360 / WHEEL_LABELS.length;
+
+type ClaimResult = {
   xp: number;
-  detail: string;
+  nextClaimAt?: string;
 };
 
-const WHEEL_REWARDS: WheelReward[] = [
-  { label: "+25 XP", xp: 25, detail: "Quick progression boost" },
-  { label: "+50 XP", xp: 50, detail: "Daily acceleration" },
-  { label: "+75 XP", xp: 75, detail: "Strong mission momentum" },
-  { label: "XP Boost", xp: 120, detail: "Temporary XP power-up payout" },
-  { label: "Mission Reset", xp: 90, detail: "Mission queue refresh bonus" },
-  { label: "Streak Bonus", xp: 110, detail: "Streak preservation reward" },
-];
-
-const SEGMENTS = WHEEL_REWARDS.length;
-const SEGMENT_ANGLE = 360 / SEGMENTS;
-const MAX_SPINS = 1;
-const COOLDOWN_HOURS = 24;
+function parseClaimResult(payload: Record<string, unknown>): ClaimResult {
+  const xpRaw = payload.reward_xp ?? payload.awarded_xp ?? payload.claimed_xp ?? payload.xp ?? 0;
+  const xp = Number(xpRaw);
+  const nextClaimAt = typeof payload.next_claim_at === "string" ? payload.next_claim_at : undefined;
+  return { xp: Number.isFinite(xp) ? xp : 0, nextClaimAt };
+}
 
 export default function SpinToEarn() {
-  const { session } = useAuth();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [spinning, setSpinning] = useState(false);
   const [rotation, setRotation] = useState(0);
-  const [lastWin, setLastWin] = useState<WheelReward | null>(null);
-  const [countdown, setCountdown] = useState("");
+  const [result, setResult] = useState<ClaimResult | null>(null);
+  const [resultLabel, setResultLabel] = useState<string | null>(null);
 
-  const { data: recentSpins } = useQuery({
-    queryKey: ["daily-boost-records", session?.user?.id],
-    enabled: !!session?.user?.id,
-    queryFn: async () => {
-      const cutoff = new Date(Date.now() - COOLDOWN_HOURS * 60 * 60 * 1000).toISOString();
-      const { data } = await supabase
-        .from("spin_records")
-        .select("*")
-        .eq("user_id", session!.user.id)
-        .gte("spun_at", cutoff)
-        .order("spun_at", { ascending: false });
-      return data || [];
-    },
-    refetchInterval: 30000,
-  });
+  const segmentColors = useMemo(
+    () => [
+      "hsl(205, 80%, 55%)",
+      "hsl(192, 76%, 42%)",
+      "hsl(170, 70%, 42%)",
+      "hsl(42, 100%, 50%)",
+      "hsl(28, 95%, 55%)",
+      "hsl(264, 65%, 56%)",
+    ],
+    [],
+  );
 
-  const spinsUsed = recentSpins?.length || 0;
-  const spinsLeft = Math.max(0, MAX_SPINS - spinsUsed);
-  const nextSpinAt = useMemo(() => {
-    const latestSpin = recentSpins?.[0] ? new Date(recentSpins[0].spun_at) : null;
-    return latestSpin
-      ? new Date(latestSpin.getTime() + COOLDOWN_HOURS * 60 * 60 * 1000)
-      : null;
-  }, [recentSpins]);
-
-  useEffect(() => {
-    if (!nextSpinAt || spinsLeft > 0) {
-      setCountdown("");
-      return;
-    }
-
-    const tick = () => {
-      const diff = nextSpinAt.getTime() - Date.now();
-      if (diff <= 0) {
-        setCountdown("");
-        queryClient.invalidateQueries({ queryKey: ["daily-boost-records"] });
-        return;
-      }
-      const hours = Math.floor(diff / 3600000);
-      const minutes = Math.floor((diff % 3600000) / 60000);
-      const seconds = Math.floor((diff % 60000) / 1000);
-      setCountdown(`${hours}h ${minutes}m ${seconds}s`);
-    };
-
-    tick();
-    const interval = setInterval(tick, 1000);
-    return () => clearInterval(interval);
-  }, [nextSpinAt, queryClient, spinsLeft]);
-
-  const handleSpin = useCallback(async () => {
-    if (!session?.user?.id || spinning || spinsLeft <= 0) return;
+  const handleSpin = async () => {
+    if (spinning) return;
     setSpinning(true);
-    setLastWin(null);
+    setResult(null);
+    setResultLabel(null);
 
-    const index = Math.floor(Math.random() * SEGMENTS);
-    const reward = WHEEL_REWARDS[index];
-
+    const index = Math.floor(Math.random() * WHEEL_LABELS.length);
+    const label = WHEEL_LABELS[index];
     const targetAngle = 360 - (index * SEGMENT_ANGLE + SEGMENT_ANGLE / 2);
-    const fullTurns = 6 * 360;
-    const newRotation = rotation + fullTurns + targetAngle + (Math.random() * 8 - 4);
-    setRotation(newRotation);
+    setRotation((prev) => prev + 6 * 360 + targetAngle + (Math.random() * 8 - 4));
 
     setTimeout(async () => {
-      const { error } = await supabase.from("spin_records").insert({
-        user_id: session.user.id,
-        reward_amount: reward.xp,
-      });
-
-      if (error) {
-        toast.error(error.message);
-      } else {
-        setLastWin(reward);
-        toast.success(`Daily Boost secured: +${reward.xp} XP`);
-        queryClient.invalidateQueries({ queryKey: ["daily-boost-records"] });
+      try {
+        const response = await claimDailyReward();
+        const parsed = parseClaimResult(response);
+        setResult(parsed);
+        setResultLabel(label);
+        toast.success(`Daily reward claimed: +${formatXp(parsed.xp)} XP`);
+        queryClient.invalidateQueries({ queryKey: ["user-core"] });
         queryClient.invalidateQueries({ queryKey: ["progression-summary"] });
-        queryClient.invalidateQueries({ queryKey: ["wallet"] });
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : "Unable to claim daily reward";
+        toast.error(message);
+      } finally {
+        setSpinning(false);
       }
-
-      setSpinning(false);
     }, 4200);
-  }, [queryClient, rotation, session, spinning, spinsLeft]);
-
-  const segmentColors = [
-    "hsl(205, 80%, 55%)",
-    "hsl(192, 76%, 42%)",
-    "hsl(170, 70%, 42%)",
-    "hsl(42, 100%, 50%)",
-    "hsl(28, 95%, 55%)",
-    "hsl(264, 65%, 56%)",
-  ];
+  };
 
   return (
     <AppLayout>
@@ -140,22 +85,9 @@ export default function SpinToEarn() {
         </motion.div>
 
         <div className="flex flex-col items-center gap-7">
-          <div className="flex flex-wrap items-center justify-center gap-4">
-            <div className="glass rounded-xl px-5 py-3 text-center">
-              <p className="text-xs uppercase tracking-wider text-muted-foreground">Daily Boost Attempts</p>
-              <p className="text-2xl font-bold text-primary font-mono">
-                {spinsLeft}/{MAX_SPINS}
-              </p>
-            </div>
-            {countdown && (
-              <div className="glass rounded-xl px-5 py-3 text-center">
-                <p className="text-xs uppercase tracking-wider text-muted-foreground flex items-center justify-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  Cooldown
-                </p>
-                <p className="font-mono text-lg text-warning">{countdown}</p>
-              </div>
-            )}
+          <div className="glass rounded-xl px-5 py-3 text-center">
+            <p className="text-xs uppercase tracking-wider text-muted-foreground">Bix Balance</p>
+            <p className="text-xl font-bold">{Number(user?.bix_balance || 0).toLocaleString()} Bix</p>
           </div>
 
           <motion.div
@@ -177,7 +109,7 @@ export default function SpinToEarn() {
                   transition: spinning ? "transform 4.2s cubic-bezier(0.17, 0.67, 0.12, 0.99)" : "none",
                 }}
               >
-                {WHEEL_REWARDS.map((reward, index) => {
+                {WHEEL_LABELS.map((label, index) => {
                   const start = index * SEGMENT_ANGLE;
                   const end = (index + 1) * SEGMENT_ANGLE;
                   const startRad = (start - 90) * (Math.PI / 180);
@@ -186,17 +118,15 @@ export default function SpinToEarn() {
                   const y1 = 160 + 145 * Math.sin(startRad);
                   const x2 = 160 + 145 * Math.cos(endRad);
                   const y2 = 160 + 145 * Math.sin(endRad);
-                  const largeArc = SEGMENT_ANGLE > 180 ? 1 : 0;
-
                   const midAngle = (start + end) / 2 - 90;
                   const midRad = midAngle * (Math.PI / 180);
                   const textX = 160 + 104 * Math.cos(midRad);
                   const textY = 160 + 104 * Math.sin(midRad);
 
                   return (
-                    <g key={reward.label}>
+                    <g key={label}>
                       <path
-                        d={`M 160 160 L ${x1} ${y1} A 145 145 0 ${largeArc} 1 ${x2} ${y2} Z`}
+                        d={`M 160 160 L ${x1} ${y1} A 145 145 0 0 1 ${x2} ${y2} Z`}
                         fill={segmentColors[index]}
                         stroke="hsl(220, 22%, 6%)"
                         strokeWidth="2"
@@ -211,22 +141,14 @@ export default function SpinToEarn() {
                         fontSize="13"
                         transform={`rotate(${start + SEGMENT_ANGLE / 2}, ${textX}, ${textY})`}
                       >
-                        {reward.label}
+                        {label}
                       </text>
                     </g>
                   );
                 })}
 
                 <circle cx="160" cy="160" r="28" fill="hsl(220, 20%, 6%)" stroke="hsl(42, 100%, 50%)" strokeWidth="3" />
-                <text
-                  x="160"
-                  y="160"
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fill="hsl(42, 100%, 50%)"
-                  fontSize="10"
-                  fontWeight="700"
-                >
+                <text x="160" y="160" textAnchor="middle" dominantBaseline="middle" fill="hsl(42, 100%, 50%)" fontSize="10" fontWeight="700">
                   BOOST
                 </text>
               </svg>
@@ -234,7 +156,7 @@ export default function SpinToEarn() {
           </motion.div>
 
           <AnimatePresence>
-            {lastWin && (
+            {result && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.5 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -242,17 +164,21 @@ export default function SpinToEarn() {
                 className="glass rounded-xl p-5 text-center glow-gold max-w-sm"
               >
                 <Sparkles className="h-7 w-7 mx-auto text-primary mb-2" />
-                <p className="text-sm text-muted-foreground">Reward secured</p>
-                <p className="text-2xl font-bold text-gradient-gold">{lastWin.label}</p>
-                <p className="text-xs text-muted-foreground mt-1">{lastWin.detail}</p>
-                <p className="text-sm font-mono mt-2 text-primary">+{formatXp(lastWin.xp)} XP</p>
+                <p className="text-sm text-muted-foreground">Daily reward secured</p>
+                <p className="text-2xl font-bold text-gradient-gold">{resultLabel || "XP Reward"}</p>
+                <p className="text-sm font-mono mt-2 text-primary">{`+${formatXp(result.xp)} XP`}</p>
+                {result.nextClaimAt && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {`Next claim: ${new Date(result.nextClaimAt).toLocaleString()}`}
+                  </p>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
 
           <Button
             onClick={handleSpin}
-            disabled={spinning || spinsLeft <= 0}
+            disabled={spinning}
             size="lg"
             className="bg-gradient-gold text-primary-foreground font-semibold text-lg px-12 glow-gold disabled:opacity-50"
           >
@@ -261,12 +187,10 @@ export default function SpinToEarn() {
                 <RotateCw className="h-5 w-5 animate-spin mr-2" />
                 Boosting...
               </>
-            ) : spinsLeft <= 0 ? (
-              "Boost Unavailable"
             ) : (
               <>
                 <RotateCw className="h-5 w-5 mr-2" />
-                Spin Daily Boost Wheel
+                Claim Daily Boost
               </>
             )}
           </Button>

@@ -1,90 +1,66 @@
 import { AppLayout } from "@/components/AppLayout";
 import { LevelBadge } from "@/components/LevelBadge";
 import { XpProgressBar } from "@/components/XpProgressBar";
-import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { useProgression } from "@/hooks/useProgression";
-import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatXp, getLevelProgress } from "@/lib/progression";
+import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { ArrowRight, Trophy } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Activity, Coins, Sparkles, Trophy } from "lucide-react";
 
-type MissionPreview = {
-  id: string;
-  name: string;
-  reward_points: number;
+type ActivityItem = Record<string, unknown> & {
+  id?: string;
+  activity_type?: string;
+  description?: string | null;
+  created_at?: string;
 };
 
-function getDifficultyTag(rewardXp: number): "Easy" | "Medium" | "Hard" {
-  if (rewardXp >= 180) return "Hard";
-  if (rewardXp >= 80) return "Medium";
-  return "Easy";
+function getActivityXp(activity: Record<string, unknown>): number {
+  const raw = activity.xp_amount ?? activity.points_earned ?? activity.amount ?? 0;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : 0;
 }
 
-function difficultyClass(difficulty: "Easy" | "Medium" | "Hard") {
-  if (difficulty === "Hard") return "bg-rose-500/15 text-rose-300 border-rose-400/30";
-  if (difficulty === "Medium") return "bg-amber-500/15 text-amber-300 border-amber-400/30";
-  return "bg-emerald-500/15 text-emerald-300 border-emerald-400/30";
+function activityTitle(activity: ActivityItem): string {
+  if (activity.description && typeof activity.description === "string") return activity.description;
+  if (activity.activity_type && typeof activity.activity_type === "string") {
+    return activity.activity_type.replaceAll("_", " ");
+  }
+  return "Activity";
 }
-
-const FALLBACK_LEADERBOARD = [
-  { rank: 1, username: "Alex", xp: 2450 },
-  { rank: 2, username: "Musa", xp: 2100 },
-  { rank: 3, username: "Jay", xp: 1800 },
-  { rank: 4, username: "Nina", xp: 1640 },
-  { rank: 5, username: "Ravi", xp: 1510 },
-];
 
 export default function Dashboard() {
-  const { profile, session } = useAuth();
+  const { session, user } = useAuth();
   const { progressionQuery, weeklyRankQuery, seasonRankQuery } = useProgression(session?.user?.id);
 
-  const { data: missionPreview } = useQuery({
-    queryKey: ["dashboard-active-missions"],
+  const { data: activities } = useQuery({
+    queryKey: ["dashboard-activities", session?.user?.id],
     enabled: !!session?.user?.id,
     queryFn: async () => {
-      const { data } = await supabase
-        .from("tasks")
-        .select("id, name, reward_points")
-        .eq("is_active", true)
-        .order("reward_points", { ascending: false })
-        .limit(3);
+      const { data, error } = await supabase
+        .from("activities")
+        .select("*")
+        .eq("user_id", session!.user.id)
+        .order("created_at", { ascending: false })
+        .limit(8);
 
-      return (data ?? []) as MissionPreview[];
+      if (error) throw error;
+      return (data ?? []) as ActivityItem[];
     },
   });
 
-  const progression = progressionQuery.data;
-  const fallbackProgress = getLevelProgress(0);
-  const levelProgress = progression?.levelProgress ?? fallbackProgress;
-  const totalXp = progression?.totalXp ?? 0;
-  const seasonXp = progression?.seasonXp ?? 0;
-  const weeklyXp = progression?.weeklyXp ?? 0;
-
-  const seasonRank = seasonRankQuery.data?.current_user?.rank;
-  const weeklyRank = weeklyRankQuery.data?.current_user?.rank;
-  const leaderboardRows = weeklyRankQuery.data?.top?.length
-    ? weeklyRankQuery.data.top
-    : FALLBACK_LEADERBOARD.map((entry) => ({
-        user_id: String(entry.rank),
-        username: entry.username,
-        avatar_url: null,
-        xp: entry.xp,
-        level: 1,
-        level_name: "Explorer",
-        rank: entry.rank,
-        is_current_user: false,
-      }));
-
-  const nextUnlocks = levelProgress.next?.unlocks ?? ["Season Champion identity frame", "Competitive boost slots"];
+  const totalXp = Number(user?.total_xp || progressionQuery.data?.totalXp || 0);
+  const bixBalance = Number(user?.bix_balance || 0);
+  const levelNumber = Number(user?.current_level || progressionQuery.data?.currentLevel || 1);
+  const levelName = String(user?.level_name || progressionQuery.data?.levelName || "Explorer");
+  const progress = getLevelProgress(totalXp);
 
   return (
     <AppLayout>
       <div className="space-y-6">
         <motion.section
-          initial={{ opacity: 0, y: 16 }}
+          initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           className="glass rounded-2xl p-6 sm:p-8 relative overflow-hidden"
         >
@@ -92,143 +68,91 @@ export default function Dashboard() {
           <div className="relative space-y-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h1 className="text-2xl sm:text-3xl font-bold">
-                  {`Level ${levelProgress.current.level} - ${levelProgress.current.name}`}
-                </h1>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {profile?.display_name || "Operator"}
-                </p>
+                <h1 className="text-2xl sm:text-3xl font-bold">{levelName}</h1>
+                <p className="text-sm text-muted-foreground">{`Current Level: ${levelNumber}`}</p>
               </div>
               <LevelBadge totalXp={totalXp} />
             </div>
 
-            <div className="grid gap-2 text-sm sm:text-base">
-              <p>
-                Total XP: <span className="font-mono text-xl sm:text-2xl text-foreground">{formatXp(totalXp)} XP</span>
-              </p>
-              <p className="text-muted-foreground">
-                XP to Next Level: <span className="text-foreground font-semibold">{formatXp(levelProgress.xpToNextLevel)} XP</span>
-              </p>
-            </div>
+            <XpProgressBar value={progress.progressPercent} />
 
-            <XpProgressBar value={levelProgress.progressPercent} />
-
-            <div className="flex flex-wrap items-center gap-4 text-sm">
-              <span className="rounded-full bg-secondary px-3 py-1">
-                Season Rank: {seasonRank ? `#${seasonRank}` : "-"}
-              </span>
-              <span className="rounded-full bg-secondary px-3 py-1">
-                Weekly Rank: {weeklyRank ? `#${weeklyRank}` : "-"}
-              </span>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-xl border border-border/60 bg-secondary/35 px-4 py-3">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">Total XP</p>
+                <p className="mt-1 text-2xl font-bold text-gradient-gold">{formatXp(totalXp)}</p>
+              </div>
+              <div className="rounded-xl border border-border/60 bg-secondary/35 px-4 py-3">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">Bix Balance</p>
+                <p className="mt-1 text-2xl font-bold">{bixBalance.toLocaleString()} Bix</p>
+              </div>
+              <div className="rounded-xl border border-border/60 bg-secondary/35 px-4 py-3">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">Season Rank</p>
+                <p className="mt-1 text-2xl font-bold">
+                  {seasonRankQuery.data?.current_user?.rank ? `#${seasonRankQuery.data.current_user.rank}` : "-"}
+                </p>
+              </div>
+              <div className="rounded-xl border border-border/60 bg-secondary/35 px-4 py-3">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">Weekly Rank</p>
+                <p className="mt-1 text-2xl font-bold">
+                  {weeklyRankQuery.data?.current_user?.rank ? `#${weeklyRankQuery.data.current_user.rank}` : "-"}
+                </p>
+              </div>
             </div>
           </div>
         </motion.section>
 
         <motion.section
-          initial={{ opacity: 0, y: 16 }}
+          initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.05 }}
-          className="grid grid-cols-1 gap-4 md:grid-cols-3"
+          transition={{ delay: 0.06 }}
+          className="glass rounded-2xl p-6"
         >
-          <div className="glass rounded-xl p-5">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">Total XP</p>
-            <p className="mt-2 text-3xl font-bold text-gradient-gold">{formatXp(totalXp)}</p>
-          </div>
-          <div className="glass rounded-xl p-5">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">Season XP</p>
-            <p className="mt-2 text-2xl font-bold">{formatXp(seasonXp)}</p>
-          </div>
-          <div className="glass rounded-xl p-5">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">Weekly XP</p>
-            <p className="mt-2 text-2xl font-bold">{formatXp(weeklyXp)}</p>
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            <Activity className="h-5 w-5 text-primary" />
+            Recent Activities
+          </h2>
+          <div className="mt-4 space-y-2">
+            {(activities ?? []).length > 0 ? (
+              (activities ?? []).map((activity, index) => (
+                <div key={String(activity.id || `activity-${index}`)} className="rounded-xl border border-border/60 bg-secondary/35 px-4 py-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium capitalize">{activityTitle(activity)}</p>
+                    <p className="text-sm font-mono text-primary">{`+${formatXp(getActivityXp(activity))} XP`}</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {activity.created_at ? new Date(activity.created_at).toLocaleString() : ""}
+                  </p>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">No activity yet.</p>
+            )}
           </div>
         </motion.section>
 
         <motion.section
-          initial={{ opacity: 0, y: 16 }}
+          initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="space-y-3"
+          className="grid grid-cols-1 gap-4 sm:grid-cols-2"
         >
-          <h2 className="text-xl font-semibold">Active Missions</h2>
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            {(missionPreview?.length ? missionPreview : [
-              { id: "fallback-1", name: "Daily Boost Wheel", reward_points: 50 },
-              { id: "fallback-2", name: "Invite 3 Friends", reward_points: 200 },
-              { id: "fallback-3", name: "Complete 5 Missions", reward_points: 150 },
-            ]).map((mission) => {
-              const difficulty = getDifficultyTag(mission.reward_points);
-              return (
-                <div key={mission.id} className="glass rounded-xl p-5 space-y-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-semibold">{mission.name}</p>
-                    <span className={`border rounded-full px-2 py-0.5 text-[11px] ${difficultyClass(difficulty)}`}>
-                      {difficulty}
-                    </span>
-                  </div>
-                  <p className="font-mono text-lg text-primary">+{formatXp(mission.reward_points)} XP</p>
-                  <Link to="/missions" className="inline-flex items-center text-xs text-muted-foreground hover:text-foreground transition-colors">
-                    Open Mission
-                    <ArrowRight className="h-3 w-3 ml-1" />
-                  </Link>
-                </div>
-              );
-            })}
+          <div className="glass rounded-xl p-5">
+            <p className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+              <Coins className="h-3.5 w-3.5" />
+              Bix Balance
+            </p>
+            <p className="mt-2 text-2xl font-bold">{bixBalance.toLocaleString()} Bix</p>
           </div>
-        </motion.section>
-
-        <motion.section
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.15 }}
-          className="glass rounded-2xl p-6"
-        >
-          <h2 className="text-xl font-semibold">Next Level Unlock</h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {levelProgress.next
-              ? `${levelProgress.next.level} - ${levelProgress.next.name}`
-              : "Max level reached"}
-          </p>
-          <ul className="mt-4 space-y-2 text-sm">
-            {nextUnlocks.map((unlock) => (
-              <li key={unlock} className="flex items-start gap-2">
-                <span className="text-primary">•</span>
-                <span>{unlock}</span>
-              </li>
-            ))}
-          </ul>
-        </motion.section>
-
-        <motion.section
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="glass rounded-2xl p-6"
-        >
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-            <h2 className="text-xl font-semibold flex items-center gap-2">
-              <Trophy className="h-5 w-5 text-primary" />
-              Leaderboard Preview
-            </h2>
-            <Link to="/leaderboard">
-              <Button variant="outline" className="border-primary/40 text-primary hover:bg-primary/10">
-                View Full Leaderboard
-              </Button>
-            </Link>
-          </div>
-
-          <div className="space-y-2">
-            {leaderboardRows.slice(0, 5).map((entry) => (
-              <div
-                key={`${entry.rank}-${entry.user_id}`}
-                className={`rounded-xl border px-4 py-3 flex items-center justify-between ${
-                  entry.is_current_user ? "border-primary/60 bg-primary/10" : "border-border/60 bg-secondary/40"
-                }`}
-              >
-                <p className="font-medium">{`#${entry.rank} ${entry.username}`}</p>
-                <p className="font-mono text-sm text-primary">{formatXp(entry.xp)} XP</p>
-              </div>
-            ))}
+          <div className="glass rounded-xl p-5">
+            <p className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+              <Trophy className="h-3.5 w-3.5" />
+              Progress Status
+            </p>
+            <p className="mt-2 text-2xl font-bold">{`${levelName} • L${levelNumber}`}</p>
+            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+              <Sparkles className="h-3 w-3 text-primary" />
+              {formatXp(totalXp)} XP total
+            </p>
           </div>
         </motion.section>
       </div>

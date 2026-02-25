@@ -259,17 +259,17 @@ export default function WalletPage() {
 
           {/* Send - Coming Soon */}
           <TabsContent value="send">
-            <ComingSoonCard icon={Send} title="Send BIX" desc="Transfer BIX tokens to friends and other users instantly. Enter a wallet address and send securely." />
+            <ComingSoonCard icon={Send} title="Send BIX" desc="Transfer BIX to friends and other users instantly. Enter a wallet address and send securely." />
           </TabsContent>
 
           {/* Receive - Coming Soon */}
           <TabsContent value="receive">
-            <ComingSoonCard icon={ArrowDownLeft} title="Receive BIX" desc="Share your wallet address or QR code to receive BIX tokens from anyone." />
+            <ComingSoonCard icon={ArrowDownLeft} title="Receive BIX" desc="Share your wallet address or QR code to receive BIX from anyone." />
           </TabsContent>
 
           {/* Store - Coming Soon */}
           <TabsContent value="store">
-            <ComingSoonCard icon={Store} title="BIX Store" desc="Redeem your BIX tokens for exclusive rewards, merchandise, gift cards and more." />
+            <ComingSoonCard icon={Store} title="BIX Store" desc="Redeem your BIX for exclusive rewards, merchandise, gift cards and more." />
           </TabsContent>
 
           {/* Staking */}

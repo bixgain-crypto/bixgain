@@ -4,9 +4,9 @@ import { Rocket, Sparkles, Store, Send, ArrowDownLeft } from "lucide-react";
 
 export default function Claims() {
   const comingSoonFeatures = [
-    { icon: Store, title: "BIX Store", desc: "Spend your BIX tokens on exclusive rewards and merchandise" },
-    { icon: Send, title: "Send BIX", desc: "Transfer BIX tokens to friends and other users instantly" },
-    { icon: ArrowDownLeft, title: "Receive BIX", desc: "Accept BIX tokens from anyone with your wallet address" },
+    { icon: Store, title: "BIX Store", desc: "Spend your BIX on exclusive upgrades and merchandise" },
+    { icon: Send, title: "Send BIX", desc: "Transfer BIX to other users instantly" },
+    { icon: ArrowDownLeft, title: "Receive BIX", desc: "Accept BIX from anyone with your wallet address" },
   ];
 
   return (

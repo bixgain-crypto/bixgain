@@ -9,45 +9,28 @@ import {
 
 type LeaderboardPeriod = "weekly" | "season" | "all_time";
 
-type LevelMeta = {
-  level: number;
-  levelName: string;
+type UserRow = {
+  id: string;
+  username: string | null;
+  total_xp: number | null;
+  current_level: number | null;
+  level_name: string | null;
 };
 
-type AggregatedRow = {
+type ActivityRow = Record<string, unknown> & {
+  user_id?: string;
+  created_at?: string;
+};
+
+type RankedRow = {
   user_id: string;
+  username: string;
   xp: number;
+  level: number;
+  level_name: string;
 };
 
-type ActivityRow = {
-  user_id: string | null;
-  points_earned: number | string | null;
-  created_at: string;
-};
-
-type SpinRow = {
-  user_id: string | null;
-  reward_amount: number | string | null;
-  spun_at: string;
-};
-
-type ProfileRow = {
-  user_id: string;
-  display_name: string | null;
-  avatar_url: string | null;
-};
-
-type AdminClient = ReturnType<typeof createClient>;
-
-const LEVEL_THRESHOLDS: Array<{ level: number; levelName: string; minXp: number }> = [
-  { level: 1, levelName: "Explorer", minXp: 0 },
-  { level: 2, levelName: "Builder", minXp: 5000 },
-  { level: 3, levelName: "Pro", minXp: 15000 },
-  { level: 4, levelName: "Elite", minXp: 35000 },
-  { level: 5, levelName: "Legend", minXp: 70000 },
-];
-
-const SEASON_NAMES = ["Winter", "Spring", "Summer", "Autumn"];
+const SEASON_NAMES = ["Winter", "Spring", "Summer", "Autumn"] as const;
 
 function getWeekStartISO(now = new Date()): string {
   const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
@@ -67,52 +50,33 @@ function getSeasonLabel(now = new Date()): string {
   return `${SEASON_NAMES[quarter]} ${now.getUTCFullYear()}`;
 }
 
-function getLevelFromXp(xp: number): LevelMeta {
-  let current = LEVEL_THRESHOLDS[0];
-  for (const tier of LEVEL_THRESHOLDS) {
-    if (xp >= tier.minXp) current = tier;
-    else break;
-  }
-
-  return {
-    level: current.level,
-    levelName: current.levelName,
-  };
+function extractActivityXp(row: Record<string, unknown>): number {
+  const raw = row.xp_amount ?? row.points_earned ?? row.amount ?? 0;
+  const numeric = Number(raw);
+  return Number.isFinite(numeric) ? Math.max(0, numeric) : 0;
 }
 
-function safeUsername(userId: string, displayName: string | null | undefined): string {
-  if (displayName && displayName.trim().length > 0) {
-    return displayName.trim();
-  }
+function safeUsername(userId: string, username: string | null | undefined): string {
+  if (username && username.trim().length > 0) return username.trim();
   return `User-${userId.slice(0, 6)}`;
 }
 
-async function fetchPagedRows(
-  admin: AdminClient,
-  table: "activities" | "spin_records",
-  fields: string,
-  dateColumn: string,
-  sinceIso: string | null,
-): Promise<Record<string, unknown>[]> {
+async function fetchPagedActivities(admin: ReturnType<typeof createClient>, sinceIso: string): Promise<ActivityRow[]> {
   const pageSize = 1000;
-  const rows: Record<string, unknown>[] = [];
+  const rows: ActivityRow[] = [];
   let from = 0;
 
   while (true) {
-    let query = admin
-      .from(table)
-      .select(fields)
-      .order(dateColumn, { ascending: false })
+    const { data, error } = await admin
+      .from("activities")
+      .select("*")
+      .gte("created_at", sinceIso)
+      .order("created_at", { ascending: false })
       .range(from, from + pageSize - 1);
 
-    if (sinceIso) {
-      query = query.gte(dateColumn, sinceIso);
-    }
-
-    const { data, error } = await query;
     if (error) throw error;
 
-    const chunk = (data ?? []) as Record<string, unknown>[];
+    const chunk = (data ?? []) as ActivityRow[];
     rows.push(...chunk);
 
     if (chunk.length < pageSize) break;
@@ -120,6 +84,13 @@ async function fetchPagedRows(
   }
 
   return rows;
+}
+
+function sortRank(rows: RankedRow[]): RankedRow[] {
+  return rows.sort((a, b) => {
+    if (b.xp !== a.xp) return b.xp - a.xp;
+    return a.user_id.localeCompare(b.user_id);
+  });
 }
 
 Deno.serve(async (req) => {
@@ -139,8 +110,10 @@ Deno.serve(async (req) => {
       return respond({ error: "Unauthorized" }, 401);
     }
 
-    const authHeader = req.headers.get("Authorization") || "";
-    const currentUserId = await getAuthenticatedUserId(supabaseUrl, authHeader);
+    const currentUserId = await getAuthenticatedUserId(
+      supabaseUrl,
+      req.headers.get("Authorization") || "",
+    );
     if (!currentUserId) {
       return respond({ error: "Unauthorized" }, 401);
     }
@@ -151,99 +124,106 @@ Deno.serve(async (req) => {
       periodCandidate === "weekly" || periodCandidate === "season" || periodCandidate === "all_time"
         ? periodCandidate
         : "weekly";
-
     const limitCandidate = Number(body.limit ?? 25);
     const limit = Number.isFinite(limitCandidate)
       ? Math.max(1, Math.min(100, Math.floor(limitCandidate)))
       : 25;
 
-    let sinceIso: string | null = null;
-    if (period === "weekly") sinceIso = getWeekStartISO();
-    if (period === "season") sinceIso = getSeasonStartISO();
-
     const admin = createClient(supabaseUrl, serviceKey);
-    const [activities, spins] = await Promise.all([
-      fetchPagedRows(admin, "activities", "user_id, points_earned, created_at", "created_at", sinceIso),
-      fetchPagedRows(admin, "spin_records", "user_id, reward_amount, spun_at", "spun_at", sinceIso),
-    ]);
+    const userMap = new Map<string, UserRow>();
+    let ranked: RankedRow[] = [];
 
-    const xpByUser = new Map<string, number>();
+    if (period === "all_time") {
+      const { data: users, error } = await admin
+        .from("users")
+        .select("id, username, total_xp, current_level, level_name");
 
-    for (const row of activities as ActivityRow[]) {
-      const xp = Number(row.points_earned || 0);
-      if (!row.user_id || xp <= 0) continue;
-      xpByUser.set(row.user_id, (xpByUser.get(row.user_id) || 0) + xp);
+      if (error) {
+        return respond({ error: error.message }, 500);
+      }
+
+      const rows = (users ?? []) as UserRow[];
+      ranked = sortRank(
+        rows.map((row) => ({
+          user_id: row.id,
+          username: safeUsername(row.id, row.username),
+          xp: Number(row.total_xp || 0),
+          level: Number(row.current_level || 1),
+          level_name: String(row.level_name || "Explorer"),
+        })),
+      );
+    } else {
+      const sinceIso = period === "weekly" ? getWeekStartISO() : getSeasonStartISO();
+      const activities = await fetchPagedActivities(admin, sinceIso);
+      const xpByUser = new Map<string, number>();
+
+      for (const row of activities) {
+        const userId = row.user_id;
+        if (!userId) continue;
+        const xp = extractActivityXp(row);
+        if (xp <= 0) continue;
+        xpByUser.set(userId, (xpByUser.get(userId) || 0) + xp);
+      }
+
+      if (!xpByUser.has(currentUserId)) {
+        xpByUser.set(currentUserId, 0);
+      }
+
+      const userIds = Array.from(xpByUser.keys());
+      if (userIds.length > 0) {
+        const { data: users, error: usersError } = await admin
+          .from("users")
+          .select("id, username, total_xp, current_level, level_name")
+          .in("id", userIds);
+
+        if (usersError) {
+          return respond({ error: usersError.message }, 500);
+        }
+
+        for (const row of (users ?? []) as UserRow[]) {
+          userMap.set(row.id, row);
+        }
+      }
+
+      ranked = sortRank(
+        userIds.map((id) => {
+          const row = userMap.get(id);
+          return {
+            user_id: id,
+            username: safeUsername(id, row?.username),
+            xp: Number(xpByUser.get(id) || 0),
+            level: Number(row?.current_level || 1),
+            level_name: String(row?.level_name || "Explorer"),
+          };
+        }),
+      );
     }
-
-    for (const row of spins as SpinRow[]) {
-      const xp = Number(row.reward_amount || 0);
-      if (!row.user_id || xp <= 0) continue;
-      xpByUser.set(row.user_id, (xpByUser.get(row.user_id) || 0) + xp);
-    }
-
-    if (!xpByUser.has(currentUserId)) {
-      xpByUser.set(currentUserId, 0);
-    }
-
-    const ranked: AggregatedRow[] = Array.from(xpByUser.entries())
-      .map(([user_id, xp]) => ({ user_id, xp }))
-      .sort((a, b) => {
-        if (b.xp !== a.xp) return b.xp - a.xp;
-        return a.user_id.localeCompare(b.user_id);
-      });
 
     const rankByUser = new Map<string, number>();
     ranked.forEach((row, index) => rankByUser.set(row.user_id, index + 1));
 
-    const topRows = ranked.slice(0, limit);
-    const currentUserRow = ranked.find((row) => row.user_id === currentUserId) || null;
+    const top = ranked.slice(0, limit).map((row) => ({
+      ...row,
+      rank: rankByUser.get(row.user_id) || 0,
+      is_current_user: row.user_id === currentUserId,
+    }));
 
-    const profileIds = Array.from(new Set([
-      ...topRows.map((row) => row.user_id),
-      ...(currentUserRow ? [currentUserRow.user_id] : []),
-    ]));
-
-    let profileMap = new Map<string, { display_name: string | null; avatar_url: string | null }>();
-    if (profileIds.length > 0) {
-      const { data: profiles, error: profileError } = await admin
-        .from("profiles")
-        .select("user_id, display_name, avatar_url")
-        .in("user_id", profileIds);
-
-      if (profileError) {
-        return respond({ error: profileError.message }, 500);
-      }
-
-      profileMap = new Map(
-        ((profiles || []) as ProfileRow[]).map((row) => [
-          row.user_id,
-          { display_name: row.display_name, avatar_url: row.avatar_url },
-        ]),
-      );
-    }
-
-    const toEntry = (row: AggregatedRow) => {
-      const profile = profileMap.get(row.user_id);
-      const level = getLevelFromXp(row.xp);
-      return {
-        user_id: row.user_id,
-        username: safeUsername(row.user_id, profile?.display_name),
-        avatar_url: profile?.avatar_url ?? null,
-        xp: row.xp,
-        level: level.level,
-        level_name: level.levelName,
-        rank: rankByUser.get(row.user_id) || 0,
-        is_current_user: row.user_id === currentUserId,
-      };
-    };
+    const current = ranked.find((row) => row.user_id === currentUserId);
+    const current_user = current
+      ? {
+          ...current,
+          rank: rankByUser.get(current.user_id) || 0,
+          is_current_user: true,
+        }
+      : null;
 
     return respond({
       period,
       generated_at: new Date().toISOString(),
       season_label: getSeasonLabel(),
       total_players: ranked.length,
-      top: topRows.map(toEntry),
-      current_user: currentUserRow ? toEntry(currentUserRow) : null,
+      top,
+      current_user,
     });
   } catch (err) {
     return respond({ error: (err as Error).message }, 500);

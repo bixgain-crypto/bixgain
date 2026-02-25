@@ -48,11 +48,11 @@ const STORE_ITEMS: StoreItem[] = [
 ];
 
 export default function Store() {
-  const { wallet } = useAuth();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [purchasing, setPurchasing] = useState<string | null>(null);
 
-  const bixBalance = Number(wallet?.balance || 0);
+  const bixBalance = Number(user?.bix_balance || 0);
 
   const handlePurchase = async (item: StoreItem) => {
     if (purchasing) return;
@@ -65,7 +65,7 @@ export default function Store() {
     try {
       await spendBix(item.cost);
       toast.success(`${item.name} unlocked`);
-      queryClient.invalidateQueries({ queryKey: ["wallet"] });
+      queryClient.invalidateQueries({ queryKey: ["user-core"] });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Purchase failed";
       toast.error(message);
