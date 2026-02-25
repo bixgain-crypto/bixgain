@@ -19,6 +19,26 @@ type AggregatedRow = {
   xp: number;
 };
 
+type ActivityRow = {
+  user_id: string | null;
+  points_earned: number | string | null;
+  created_at: string;
+};
+
+type SpinRow = {
+  user_id: string | null;
+  reward_amount: number | string | null;
+  spun_at: string;
+};
+
+type ProfileRow = {
+  user_id: string;
+  display_name: string | null;
+  avatar_url: string | null;
+};
+
+type AdminClient = ReturnType<typeof createClient>;
+
 const LEVEL_THRESHOLDS: Array<{ level: number; levelName: string; minXp: number }> = [
   { level: 1, levelName: "Explorer", minXp: 0 },
   { level: 2, levelName: "Builder", minXp: 5000 },
@@ -68,14 +88,14 @@ function safeUsername(userId: string, displayName: string | null | undefined): s
 }
 
 async function fetchPagedRows(
-  admin: any,
+  admin: AdminClient,
   table: "activities" | "spin_records",
   fields: string,
   dateColumn: string,
   sinceIso: string | null,
-) {
+): Promise<Record<string, unknown>[]> {
   const pageSize = 1000;
-  const rows: any[] = [];
+  const rows: Record<string, unknown>[] = [];
   let from = 0;
 
   while (true) {
@@ -92,7 +112,7 @@ async function fetchPagedRows(
     const { data, error } = await query;
     if (error) throw error;
 
-    const chunk = data ?? [];
+    const chunk = (data ?? []) as Record<string, unknown>[];
     rows.push(...chunk);
 
     if (chunk.length < pageSize) break;
@@ -149,13 +169,13 @@ Deno.serve(async (req) => {
 
     const xpByUser = new Map<string, number>();
 
-    for (const row of activities) {
+    for (const row of activities as ActivityRow[]) {
       const xp = Number(row.points_earned || 0);
       if (!row.user_id || xp <= 0) continue;
       xpByUser.set(row.user_id, (xpByUser.get(row.user_id) || 0) + xp);
     }
 
-    for (const row of spins) {
+    for (const row of spins as SpinRow[]) {
       const xp = Number(row.reward_amount || 0);
       if (!row.user_id || xp <= 0) continue;
       xpByUser.set(row.user_id, (xpByUser.get(row.user_id) || 0) + xp);
@@ -195,7 +215,7 @@ Deno.serve(async (req) => {
       }
 
       profileMap = new Map(
-        (profiles || []).map((row: any) => [
+        ((profiles || []) as ProfileRow[]).map((row) => [
           row.user_id,
           { display_name: row.display_name, avatar_url: row.avatar_url },
         ]),
