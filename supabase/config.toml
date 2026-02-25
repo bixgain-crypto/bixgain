@@ -5,3 +5,18 @@ verify_jwt = false
 
 [functions.staking]
 verify_jwt = false
+
+[functions.award_xp]
+verify_jwt = true
+
+[functions.convert_xp_to_bix]
+verify_jwt = true
+
+[functions.recalc_level]
+verify_jwt = true
+
+[functions.spend_bix]
+verify_jwt = true
+
+[functions.spend_xp]
+verify_jwt = true
