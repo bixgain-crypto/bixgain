@@ -32,7 +32,12 @@ export default function Auth() {
     if (isLogin) {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
-        toast.error(error.message);
+        const isSignupDbError = error.message?.toLowerCase().includes("database error saving new user");
+        if (isSignupDbError) {
+          toast.error("Signup is blocked by backend trigger/schema mismatch. Existing users can still sign in.");
+        } else {
+          toast.error(error.message);
+        }
       } else {
         toast.success("Welcome back!");
         window.location.href = "/dashboard";
