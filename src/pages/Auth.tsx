@@ -7,6 +7,7 @@ import { BixLogo } from "@/components/BixLogo";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { useSearchParams } from "react-router-dom";
+import { getOrCreateDeviceId, normalizeReferralCode } from "@/lib/referrals";
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -20,7 +21,7 @@ export default function Auth() {
   useEffect(() => {
     const ref = searchParams.get("ref");
     if (ref) {
-      setReferralCode(ref);
+      setReferralCode(normalizeReferralCode(ref));
       setIsLogin(false);
     }
   }, [searchParams]);
@@ -43,13 +44,14 @@ export default function Auth() {
         window.location.href = "/dashboard";
       }
     } else {
+      const normalizedReferralCode = normalizeReferralCode(referralCode);
       const { data: signUpData, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
             username: username.trim() || email.split("@")[0] || undefined,
-            referral_code: referralCode || undefined,
+            referral_code: normalizedReferralCode || undefined,
           },
         },
       });
@@ -57,10 +59,22 @@ export default function Auth() {
         toast.error(error.message);
       } else {
         // Link referral server-side (no client-side DB writes)
-        if (referralCode && signUpData.user) {
-          await supabase.functions.invoke("task-operations", {
-            body: { action: "link_referral", referral_code: referralCode, new_user_id: signUpData.user.id },
+        if (normalizedReferralCode && signUpData.user) {
+          const { data: referralData, error: referralError } = await supabase.functions.invoke("task-operations", {
+            body: {
+              action: "link_referral",
+              referral_code: normalizedReferralCode,
+              new_user_id: signUpData.user.id,
+              device_id: getOrCreateDeviceId(),
+            },
           });
+          if (referralError || (referralData && typeof referralData === "object" && "error" in referralData)) {
+            const fallbackMessage =
+              (referralData as { error?: string } | null)?.error ||
+              referralError?.message ||
+              "Referral code could not be linked";
+            toast.warning(fallbackMessage);
+          }
         }
         toast.success("Check your email to verify your account!");
       }
@@ -101,7 +115,7 @@ export default function Auth() {
             <Input
               id="password"
               type="password"
-              placeholder="••••••••"
+              placeholder="********"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -132,7 +146,7 @@ export default function Auth() {
                 type="text"
                 placeholder="e.g. BIX1A2B3C4D"
                 value={referralCode}
-                onChange={(e) => setReferralCode(e.target.value)}
+                onChange={(e) => setReferralCode(normalizeReferralCode(e.target.value))}
                 className="bg-secondary border-border font-mono"
               />
             </div>

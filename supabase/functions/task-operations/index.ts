@@ -98,13 +98,14 @@ async function linkReferral(
   ip: string
 ) {
   const { referral_code, device_id } = body;
-  if (!referral_code) return respond({ error: "referral_code required" }, 400);
+  const normalizedCode = String(referral_code || "").trim().toUpperCase();
+  if (!normalizedCode) return respond({ error: "referral_code required" }, 400);
 
   // Look up referrer by referral_code
   const { data: referrer } = await admin
     .from("profiles")
     .select("id, user_id")
-    .eq("referral_code", referral_code)
+    .ilike("referral_code", normalizedCode)
     .maybeSingle();
 
   if (!referrer) return respond({ error: "Invalid referral code" }, 404);

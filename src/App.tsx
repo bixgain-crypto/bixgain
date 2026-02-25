@@ -13,6 +13,7 @@ import Store from "./pages/Store";
 import Boosts from "./pages/Boosts";
 import Admin from "./pages/Admin";
 import SpinToEarn from "./pages/SpinToEarn";
+import Referrals from "./pages/Referrals";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -29,6 +30,7 @@ const App = () => (
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/missions" element={<Tasks />} />
+          <Route path="/referrals" element={<Referrals />} />
           <Route path="/tasks" element={<Navigate to="/missions" replace />} />
           <Route path="/spin" element={<SpinToEarn />} />
           <Route path="/boosts" element={<Boosts />} />

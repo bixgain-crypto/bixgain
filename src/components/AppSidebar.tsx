@@ -11,6 +11,7 @@ import {
   LogOut,
   Menu,
   X,
+  Users,
 } from "lucide-react";
 import { BixLogo } from "./BixLogo";
 import { useAuth } from "@/hooks/useAuth";
@@ -21,6 +22,7 @@ const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/profile", label: "Profile", icon: UserCircle2 },
   { href: "/missions", label: "Missions", icon: Target },
+  { href: "/referrals", label: "Referrals", icon: Users },
   { href: "/spin", label: "Daily Boost", icon: Orbit },
   { href: "/boosts", label: "Boosts", icon: Zap },
   { href: "/leaderboard", label: "Leaderboard", icon: Trophy },

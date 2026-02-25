@@ -41,6 +41,12 @@ const MISSIONS: MissionItem[] = [
 type ActivityRow = Record<string, unknown> & {
   description?: string | null;
   created_at?: string;
+  metadata?: Record<string, unknown> | null;
+};
+
+type ReferralRow = {
+  id: string;
+  qualified: boolean;
 };
 
 function difficultyClass(level: MissionItem["difficulty"]): string {
@@ -53,14 +59,14 @@ async function insertActivityWithFallback(userId: string, mission: MissionItem):
   const payloads: Record<string, unknown>[] = [
     {
       user_id: userId,
-      activity_type: "mission",
+      activity_type: "custom",
       description: mission.name,
-      xp_amount: mission.xpReward,
+      points_earned: mission.xpReward,
       metadata: { mission_id: mission.id, source: "missions" },
     },
     {
       user_id: userId,
-      activity_type: "mission",
+      activity_type: "custom",
       description: mission.name,
       points_earned: mission.xpReward,
       metadata: { mission_id: mission.id, source: "missions" },
@@ -110,12 +116,40 @@ export default function Tasks() {
     },
   });
 
+  const { data: referralRows } = useQuery({
+    queryKey: ["mission-referrals", session?.user?.id],
+    enabled: !!session?.user?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("referrals")
+        .select("id, qualified")
+        .eq("referrer_id", session!.user.id);
+
+      if (error) throw error;
+      return (data ?? []) as ReferralRow[];
+    },
+  });
+
+  const qualifiedReferrals = useMemo(
+    () => (referralRows ?? []).filter((row) => row.qualified).length,
+    [referralRows],
+  );
+
   const visibleMissions = useMemo(
     () => MISSIONS.filter((mission) => mission.category === category),
     [category],
   );
 
   const getProgress = (mission: MissionItem) => {
+    if (mission.category === "referral") {
+      const progress = Math.min(qualifiedReferrals, mission.target);
+      return {
+        current: progress,
+        percent: Math.max(0, Math.min(100, (progress / mission.target) * 100)),
+        completed: progress >= mission.target,
+      };
+    }
+
     const current = (activities ?? []).filter((row) => {
       const text = typeof row.description === "string" ? row.description.toLowerCase() : "";
       return text.includes(mission.name.toLowerCase());
@@ -128,11 +162,41 @@ export default function Tasks() {
     };
   };
 
+  const isMissionClaimed = (mission: MissionItem) => {
+    return (activities ?? []).some((row) => {
+      const descriptionMatch =
+        typeof row.description === "string" &&
+        row.description.toLowerCase() === mission.name.toLowerCase();
+
+      const metadata = row.metadata;
+      const metadataMatch =
+        metadata &&
+        typeof metadata === "object" &&
+        "mission_id" in metadata &&
+        metadata.mission_id === mission.id;
+
+      return Boolean(descriptionMatch || metadataMatch);
+    });
+  };
+
   const handleCompleteMission = async (mission: MissionItem) => {
     if (!session?.user?.id) return;
     if (Number(user?.current_level || 1) < mission.levelRequired) {
       toast.error(`Level ${mission.levelRequired} required`);
       return;
+    }
+
+    if (mission.category === "referral") {
+      const progress = getProgress(mission);
+      if (!progress.completed) {
+        toast.error(`Referral target not reached (${progress.current}/${mission.target})`);
+        return;
+      }
+
+      if (isMissionClaimed(mission)) {
+        toast.error("Referral mission already claimed");
+        return;
+      }
     }
 
     setPendingMission(mission.id);
@@ -185,6 +249,8 @@ export default function Tasks() {
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {visibleMissions.map((mission) => {
             const progress = getProgress(mission);
+            const claimed = isMissionClaimed(mission);
+            const referralNeedsProgress = mission.category === "referral" && !progress.completed;
             return (
               <motion.div
                 key={mission.id}
@@ -223,7 +289,7 @@ export default function Tasks() {
 
                 <XpProgressBar value={progress.percent} />
 
-                {progress.completed ? (
+                {(mission.category === "referral" ? claimed : progress.completed) ? (
                   <div className="rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300 flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4" />
                     Mission completed
@@ -231,7 +297,7 @@ export default function Tasks() {
                 ) : (
                   <Button
                     onClick={() => handleCompleteMission(mission)}
-                    disabled={pendingMission === mission.id}
+                    disabled={pendingMission === mission.id || referralNeedsProgress}
                     className="w-full bg-gradient-gold text-primary-foreground font-semibold"
                   >
                     {pendingMission === mission.id ? (
@@ -239,6 +305,8 @@ export default function Tasks() {
                         <Clock className="h-4 w-4 mr-1.5 animate-spin" />
                         Submitting...
                       </>
+                    ) : referralNeedsProgress ? (
+                      `Invite ${mission.target - progress.current} more`
                     ) : (
                       "Complete Mission"
                     )}
