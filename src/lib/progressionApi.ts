@@ -102,8 +102,18 @@ export async function awardXp(xpAmount: number, userId?: string): Promise<RpcRes
 }
 
 export async function claimDailyReward(): Promise<RpcResult> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const payloads: JsonRecord[] = [{}];
+  if (user?.id) {
+    payloads.push({ p_user_id: user.id });
+    payloads.push({ user_id: user.id });
+  }
+
   return callRpcWithFallback("claim_daily_reward", [
-    {},
+    ...payloads,
   ]);
 }
 
