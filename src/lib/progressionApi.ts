@@ -28,6 +28,25 @@ function normalizeError(prefix: string, error: unknown): Error {
   return new Error(`${prefix}: ${message}`);
 }
 
+function isMissingRpcError(error: unknown): boolean {
+  const candidate = (error ?? {}) as { code?: unknown; message?: unknown; details?: unknown; hint?: unknown };
+  const code = String(candidate.code ?? "");
+  const message = [candidate.message, candidate.details, candidate.hint]
+    .filter((part) => typeof part === "string")
+    .join(" ")
+    .toLowerCase();
+
+  if (code === "PGRST202" || code === "42883") {
+    return true;
+  }
+
+  return (
+    message.includes("could not find the function") ||
+    message.includes("function") && message.includes("does not exist") ||
+    message.includes("schema cache")
+  );
+}
+
 async function callRpcWithFallback(functionName: string, payloads: JsonRecord[]): Promise<RpcResult> {
   let lastError: Error | null = null;
 
@@ -39,6 +58,11 @@ async function callRpcWithFallback(functionName: string, payloads: JsonRecord[])
       }
       return { success: true, value: data };
     }
+
+    if (!isMissingRpcError(error)) {
+      throw new Error(error.message);
+    }
+
     lastError = new Error(error.message);
   }
 

@@ -23,3 +23,6 @@ verify_jwt = true
 
 [functions.leaderboard]
 verify_jwt = true
+
+[functions.claim_daily_reward]
+verify_jwt = true
