@@ -71,10 +71,19 @@ export function useAuth() {
     },
   });
 
+  // Keep legacy wallet consumers working while using users.bix_balance as
+  // the canonical source of truth for spendable BIX.
+  const normalizedWallet = wallet
+    ? {
+        ...wallet,
+        balance: Number(normalizedUser?.bix_balance ?? wallet.balance ?? 0),
+      }
+    : null;
+
   const signOut = async () => {
     await supabase.auth.signOut();
     window.location.href = "/";
   };
 
-  return { session, user: normalizedUser, profile, wallet, isLoading, signOut };
+  return { session, user: normalizedUser, profile, wallet: normalizedWallet, isLoading, signOut };
 }
