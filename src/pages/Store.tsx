@@ -1,8 +1,8 @@
 import { AppLayout } from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
+import { useAppData } from "@/context/AppDataContext";
 import { useAuth } from "@/hooks/useAuth";
 import { spendBix } from "@/lib/progressionApi";
-import { useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { BadgePlus, ShoppingBag, Sparkles, Unlock, Zap } from "lucide-react";
 import { useState } from "react";
@@ -49,7 +49,7 @@ const STORE_ITEMS: StoreItem[] = [
 
 export default function Store() {
   const { user } = useAuth();
-  const queryClient = useQueryClient();
+  const { refreshUserProfile, refreshWallet } = useAppData();
   const [purchasing, setPurchasing] = useState<string | null>(null);
 
   const bixBalance = Number(user?.bix_balance || 0);
@@ -65,7 +65,7 @@ export default function Store() {
     try {
       await spendBix(item.cost);
       toast.success(`${item.name} unlocked`);
-      queryClient.invalidateQueries({ queryKey: ["user-core"] });
+      await Promise.all([refreshUserProfile(), refreshWallet()]);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Purchase failed";
       toast.error(message);

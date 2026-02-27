@@ -766,6 +766,20 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
+    const onClaims = () => {
+      void refreshClaims();
+      if (isAdmin) {
+        void refreshAdminStats();
+      }
+    };
+
+    const onRewardTransactions = () => {
+      void refreshRewardTransactions();
+      if (isAdmin) {
+        void refreshAdminStats();
+      }
+    };
+
     if (isAdmin) {
       channel
         .on("postgres_changes", { event: "*", schema: "public", table: "users" }, onUsers)
@@ -773,10 +787,21 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
         .on("postgres_changes", { event: "*", schema: "public", table: "stakes" }, onStakes)
         .on("postgres_changes", { event: "*", schema: "public", table: "activities" }, onActivities)
         .on("postgres_changes", { event: "*", schema: "public", table: "referrals" }, onReferrals)
+        .on("postgres_changes", { event: "*", schema: "public", table: "claims" }, onClaims)
+        .on("postgres_changes", { event: "*", schema: "public", table: "reward_transactions" }, onRewardTransactions)
+        .on("postgres_changes", { event: "*", schema: "public", table: "task_attempts" }, () => {
+          void refreshAdminStats();
+        })
         .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, () => {
           void refreshTasks();
           void refreshAdminTasks();
           void refreshAdminStats();
+        })
+        .on("postgres_changes", { event: "*", schema: "public", table: "platform_settings" }, () => {
+          void refreshAdminSettings();
+        })
+        .on("postgres_changes", { event: "*", schema: "public", table: "admin_audit_log" }, () => {
+          void refreshAdminAuditLogs();
         });
     } else {
       channel
@@ -804,6 +829,23 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
           "postgres_changes",
           { event: "*", schema: "public", table: "referrals", filter: `referrer_id=eq.${sessionUserId}` },
           onReferrals,
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "claims", filter: `user_id=eq.${sessionUserId}` },
+          onClaims,
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "reward_transactions", filter: `user_id=eq.${sessionUserId}` },
+          onRewardTransactions,
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "tasks" },
+          () => {
+            void refreshTasks();
+          },
         );
     }
 
@@ -815,12 +857,16 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   }, [
     isAdmin,
     refreshActivities,
+    refreshAdminAuditLogs,
+    refreshAdminSettings,
     refreshAdminActivities,
     refreshAdminStats,
     refreshAdminTasks,
     refreshAdminUsers,
+    refreshClaims,
     refreshLeaderboard,
     refreshReferrals,
+    refreshRewardTransactions,
     refreshStakes,
     refreshTasks,
     refreshUserProfile,

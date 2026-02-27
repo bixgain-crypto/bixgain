@@ -12,6 +12,9 @@ export type AdminDashboardStats = {
   total_users: number | null;
   active_users: number | null;
   total_bix_in_circulation: number | null;
+  total_tvl_locked: number | null;
+  total_rewards_distributed: number | null;
+  active_stakes: number | null;
   pending_claims: number | null;
   total_approved_claims: number | null;
   total_revenue: number | null;
@@ -244,4 +247,3 @@ export async function listAdminAuditLogs(limit = 200): Promise<AdminAuditItem[]>
   const response = await callAdminOperation<{ logs: AdminAuditItem[] }>("list_audit_logs", { limit });
   return response.logs || [];
 }
-

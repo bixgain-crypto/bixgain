@@ -125,6 +125,40 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
+async function sumNumericColumn(
+  admin: ReturnType<typeof createClient>,
+  table: string,
+  column: string,
+  applyFilters?: (query: any) => any,
+): Promise<number> {
+  const pageSize = 1000;
+  let from = 0;
+  let total = 0;
+
+  while (true) {
+    let query = admin.from(table).select(column).range(from, from + pageSize - 1);
+    if (applyFilters) {
+      query = applyFilters(query);
+    }
+
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+
+    const rows = (data || []) as Array<Record<string, unknown>>;
+    for (const row of rows) {
+      total += Number(row[column] || 0);
+    }
+
+    if (rows.length < pageSize) {
+      break;
+    }
+
+    from += pageSize;
+  }
+
+  return total;
+}
+
 async function insertAudit(
   admin: ReturnType<typeof createClient>,
   adminUserId: string,
@@ -145,12 +179,28 @@ async function insertAudit(
 }
 
 async function getDashboard(admin: ReturnType<typeof createClient>) {
-  const [statsResult, totalTasksResult, activeTasksResult, pendingAttemptsResult, openFraudResult] = await Promise.all([
+  const [
+    statsResult,
+    totalTasksResult,
+    activeTasksResult,
+    pendingAttemptsResult,
+    openFraudResult,
+    activeStakesResult,
+    totalBixInCirculation,
+    totalTvlLocked,
+    totalRewardsDistributed,
+  ] = await Promise.all([
     admin.from("v_platform_stats").select("*").maybeSingle(),
     admin.from("tasks").select("*", { count: "exact", head: true }),
     admin.from("tasks").select("*", { count: "exact", head: true }).eq("is_active", true),
     admin.from("task_attempts").select("*", { count: "exact", head: true }).eq("status", "pending"),
     admin.from("fraud_flags").select("*", { count: "exact", head: true }).eq("status", "open"),
+    admin.from("stakes").select("*", { count: "exact", head: true }).eq("status", "active"),
+    sumNumericColumn(admin, "users", "bix_balance"),
+    sumNumericColumn(admin, "stakes", "amount", (query) => query.eq("status", "active")),
+    sumNumericColumn(admin, "activities", "points_earned", (query) =>
+      query.contains("metadata", { unit: "bix" }).gt("points_earned", 0)
+    ),
   ]);
 
   if (statsResult.error) return respond({ error: statsResult.error.message }, dbErrorStatus(statsResult.error));
@@ -158,6 +208,7 @@ async function getDashboard(admin: ReturnType<typeof createClient>) {
   if (activeTasksResult.error) return respond({ error: activeTasksResult.error.message }, dbErrorStatus(activeTasksResult.error));
   if (pendingAttemptsResult.error) return respond({ error: pendingAttemptsResult.error.message }, dbErrorStatus(pendingAttemptsResult.error));
   if (openFraudResult.error) return respond({ error: openFraudResult.error.message }, dbErrorStatus(openFraudResult.error));
+  if (activeStakesResult.error) return respond({ error: activeStakesResult.error.message }, dbErrorStatus(activeStakesResult.error));
 
   const { data: recentAudit, error: recentAuditError } = await admin
     .from("admin_audit_log")
@@ -170,6 +221,10 @@ async function getDashboard(admin: ReturnType<typeof createClient>) {
   return respond({
     stats: {
       ...(statsResult.data || {}),
+      total_bix_in_circulation: totalBixInCirculation,
+      total_tvl_locked: totalTvlLocked,
+      total_rewards_distributed: totalRewardsDistributed,
+      active_stakes: activeStakesResult.count || 0,
       total_tasks: totalTasksResult.count || 0,
       active_tasks: activeTasksResult.count || 0,
       pending_attempts: pendingAttemptsResult.count || 0,
@@ -750,4 +805,3 @@ async function listAuditLogs(admin: ReturnType<typeof createClient>, body: JsonR
     })),
   });
 }
-
