@@ -1,6 +1,6 @@
 -- Keep admin checks consistent with the canonical users.is_admin flag.
 -- This prevents RLS/admin gate mismatches between legacy admin_users and
--- progression-era users metadata.
+-- progression-era users metadata .
 
 CREATE OR REPLACE FUNCTION public.is_admin(_user_id UUID)
 RETURNS BOOLEAN

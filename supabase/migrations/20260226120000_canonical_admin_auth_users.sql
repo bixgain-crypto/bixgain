@@ -1,6 +1,6 @@
 -- Canonicalize admin authorization on users.is_admin and align legacy rows.
 
--- 1) Backfill users admin flags from active legacy admin_users memberships.
+-- 1) Backfill users admin flags from active legacy admin_users memberships .
 UPDATE public.users u
 SET
   is_admin = true,

@@ -1,5 +1,5 @@
 -- Mark daily reward activity rows explicitly as XP events for leaderboard
--- and progression aggregation consistency.
+-- and progression aggregation consistency .
 
 CREATE OR REPLACE FUNCTION public.claim_daily_reward(p_user_id UUID)
 RETURNS JSONB

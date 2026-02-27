@@ -1,6 +1,6 @@
 -- Unify BIX balance source of truth on public.users (bix_balance).
 -- Wallet rows remain available for address/claim compatibility and are mirrored
--- from users.bix_balance.
+-- from users.bix_balance .
 
 -- 1) Stop generic activity/spin trigger-based wallet credits.
 DROP TRIGGER IF EXISTS trg_credit_wallet_on_activity ON public.activities;

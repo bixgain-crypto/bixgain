@@ -31,7 +31,7 @@ function isXpActivity(row: Record<string, unknown>): boolean {
   if (unit === "xp") return true;
   if (unit === "bix") return false;
 
-  // Backward compatibility for legacy rows that pre-date metadata.unit.
+  //  Backward compatibility for legacy rows that pre-date metadata.unit.
   const activityType = typeof row.activity_type === "string" ? row.activity_type : "";
   if (activityType === "staking" || activityType === "referral" || activityType === "task_completion") {
     return false;
