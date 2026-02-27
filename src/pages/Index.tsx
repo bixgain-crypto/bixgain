@@ -23,7 +23,7 @@ const features = [
   {
     icon: Wallet,
     title: "Bix Utility Layer",
-    desc: "Spend Bix strategically on store unlocks that shape your progression path.",
+    desc: "Progress isn’t given it’s unlocked. Use BIX to access higher tiers, enhanced rewards, and long-term earning boosts. The deeper you engage, the more the ecosystem works in your favor. Stay active. Stay strategic. Stay ahead.",
   },
 ];
 
