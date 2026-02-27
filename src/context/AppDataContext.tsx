@@ -9,14 +9,13 @@ import {
   type AdminTask,
   type AdminUser,
   type PlatformSetting,
-  getAdminDashboard,
   listAdminActivities,
   listAdminAuditLogs,
   listAdminTasks,
   listAdminUsers,
   listPlatformSettings,
 } from "@/lib/adminApi";
-import { type LeaderboardPeriod, type LeaderboardResponse, fetchLeaderboard } from "@/lib/leaderboardApi";
+import { type LeaderboardPeriod, type LeaderboardResponse } from "@/lib/leaderboardApi";
 import { generateReferralCode } from "@/lib/referrals";
 import { invokeStaking } from "@/lib/stakingApi";
 
@@ -31,6 +30,21 @@ type TaskRow = Database["public"]["Tables"]["tasks"]["Row"];
 type RewardTransactionRow = Database["public"]["Tables"]["reward_transactions"]["Row"];
 type ClaimRow = Database["public"]["Tables"]["claims"]["Row"];
 type StakingPlanRow = Database["public"]["Tables"]["staking_plans"]["Row"];
+type AdminStatsRpcRow = {
+  total_users: number | null;
+  tvl_locked: number | null;
+  rewards_distributed: number | null;
+  active_stakes: number | null;
+  pending_claims?: number | null;
+};
+type LeaderboardRpcRow = {
+  user_id: string;
+  username: string | null;
+  xp: number | null;
+  level: number | null;
+  level_name: string | null;
+  rank: number | null;
+};
 
 export type CoreUser = {
   id: string;
@@ -505,8 +519,25 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     await runExclusive("refresh-admin-stats", async () => {
       setLoadingFlag("adminStats", true);
       try {
-        const data = await getAdminDashboard();
-        setAdminStats(data.stats);
+        const { data, error } = await supabase.rpc("get_admin_stats" as never);
+        if (error) throw error;
+
+        const row = (Array.isArray(data) ? data[0] : data) as AdminStatsRpcRow | null | undefined;
+        setAdminStats((prev) => ({
+          total_users: Number(row?.total_users ?? 0),
+          active_users: prev?.active_users ?? null,
+          total_bix_in_circulation: prev?.total_bix_in_circulation ?? null,
+          total_tvl_locked: Number(row?.tvl_locked ?? 0),
+          total_rewards_distributed: Number(row?.rewards_distributed ?? 0),
+          active_stakes: Number(row?.active_stakes ?? 0),
+          pending_claims: Number(row?.pending_claims ?? 0),
+          total_approved_claims: prev?.total_approved_claims ?? null,
+          total_revenue: prev?.total_revenue ?? null,
+          total_tasks: prev?.total_tasks ?? 0,
+          active_tasks: prev?.active_tasks ?? 0,
+          pending_attempts: prev?.pending_attempts ?? 0,
+          open_fraud_flags: prev?.open_fraud_flags ?? 0,
+        }));
       } finally {
         setLoadingFlag("adminStats", false);
       }
@@ -602,8 +633,37 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     await runExclusive(`refresh-leaderboard-${period}`, async () => {
       setLoadingFlag("leaderboard", true);
       try {
-        const data = await fetchLeaderboard(period, 100);
-        setLeaderboards((prev) => ({ ...prev, [period]: data }));
+        const { data, error } = await supabase.rpc("get_leaderboard" as never);
+        if (error) throw error;
+
+        const rows = (Array.isArray(data) ? data : []) as LeaderboardRpcRow[];
+        const top = rows.map((row, index) => {
+          const userId = String(row.user_id || "");
+          const xp = Number(row.xp ?? 0);
+          const level = Number(row.level ?? 1);
+          return {
+            user_id: userId,
+            username: row.username?.trim() || `User-${userId.slice(0, 6)}`,
+            avatar_url: null,
+            xp,
+            level,
+            level_name: row.level_name?.trim() || `Level ${level}`,
+            rank: Number(row.rank ?? index + 1),
+            is_current_user: userId === sessionUserId,
+          };
+        });
+        const currentUser = top.find((entry) => entry.user_id === sessionUserId) || null;
+
+        const payload: LeaderboardResponse = {
+          period,
+          generated_at: new Date().toISOString(),
+          season_label: "",
+          total_players: top.length,
+          top,
+          current_user: currentUser,
+        };
+
+        setLeaderboards((prev) => ({ ...prev, [period]: payload }));
       } finally {
         setLoadingFlag("leaderboard", false);
       }
