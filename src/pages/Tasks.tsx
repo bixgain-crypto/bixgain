@@ -139,6 +139,7 @@ export default function Tasks() {
 
   const { data: tasks, isLoading: tasksLoading } = useQuery({
     queryKey: ["mission-tasks"],
+    enabled: !!session?.user?.id,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tasks")
