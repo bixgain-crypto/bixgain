@@ -75,6 +75,7 @@ export default function StakingTab() {
       setStakeAmount("");
       queryClient.invalidateQueries({ queryKey: ["my-stakes"] });
       queryClient.invalidateQueries({ queryKey: ["wallet"] });
+      queryClient.invalidateQueries({ queryKey: ["user-core"] });
     } catch (e: any) {
       toast.error(e.message);
     }
@@ -92,6 +93,7 @@ export default function StakingTab() {
       }
       queryClient.invalidateQueries({ queryKey: ["my-stakes"] });
       queryClient.invalidateQueries({ queryKey: ["wallet"] });
+      queryClient.invalidateQueries({ queryKey: ["user-core"] });
     } catch (e: any) {
       toast.error(e.message);
     }
@@ -105,6 +107,7 @@ export default function StakingTab() {
       toast.success(`Claimed ${res.claimed.toFixed(2)} BIX!`);
       queryClient.invalidateQueries({ queryKey: ["my-stakes"] });
       queryClient.invalidateQueries({ queryKey: ["wallet"] });
+      queryClient.invalidateQueries({ queryKey: ["user-core"] });
     } catch (e: any) {
       toast.error(e.message);
     }

@@ -20,6 +20,8 @@ type UserRow = {
 type ActivityRow = Record<string, unknown> & {
   user_id?: string;
   created_at?: string;
+  activity_type?: string;
+  metadata?: Record<string, unknown> | null;
 };
 
 type RankedRow = {
@@ -50,7 +52,33 @@ function getSeasonLabel(now = new Date()): string {
   return `${SEASON_NAMES[quarter]} ${now.getUTCFullYear()}`;
 }
 
+function getActivityUnit(row: Record<string, unknown>): string | null {
+  const metadata = row.metadata;
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return null;
+
+  const unit = (metadata as Record<string, unknown>).unit;
+  if (typeof unit !== "string") return null;
+  const normalized = unit.trim().toLowerCase();
+  return normalized.length > 0 ? normalized : null;
+}
+
+function isXpActivity(row: Record<string, unknown>): boolean {
+  const unit = getActivityUnit(row);
+  if (unit === "xp") return true;
+  if (unit === "bix") return false;
+
+  // Backward compatibility for legacy rows written before metadata.unit tagging.
+  const activityType = typeof row.activity_type === "string" ? row.activity_type : "";
+  if (activityType === "staking" || activityType === "referral" || activityType === "task_completion") {
+    return false;
+  }
+
+  return true;
+}
+
 function extractActivityXp(row: Record<string, unknown>): number {
+  if (!isXpActivity(row)) return 0;
+
   const raw = row.xp_amount ?? row.points_earned ?? row.amount ?? 0;
   const numeric = Number(raw);
   return Number.isFinite(numeric) ? Math.max(0, numeric) : 0;

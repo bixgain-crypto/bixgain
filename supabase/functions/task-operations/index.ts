@@ -620,7 +620,44 @@ async function checkReferralQualification(
   await awardReward(admin, referral.referrer_id, 100, "referral", referral.id);
 }
 
-// ============ Award reward into ledger + wallet ============
+// ============ Credit BIX on users table (source of truth) ============
+async function creditUserBix(
+  admin: any,
+  userId: string,
+  amount: number,
+) {
+  if (amount <= 0) return;
+
+  const { data: userRow, error: readError } = await admin
+    .from("users")
+    .select("id, bix_balance, total_bix")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (readError) throw new Error(readError.message);
+
+  if (!userRow) {
+    const { error: insertError } = await admin.from("users").insert({ id: userId });
+    if (insertError && insertError.code !== "23505") {
+      throw new Error(insertError.message);
+    }
+  }
+
+  const nextBalance = Number(userRow?.bix_balance || 0) + amount;
+  const nextTotalBix = Number(userRow?.total_bix || 0) + amount;
+
+  const { error: updateError } = await admin
+    .from("users")
+    .update({
+      bix_balance: nextBalance,
+      total_bix: nextTotalBix,
+    })
+    .eq("id", userId);
+
+  if (updateError) throw new Error(updateError.message);
+}
+
+// ============ Award reward into ledger + users ============
 async function awardReward(
   admin: any,
   userId: string,
@@ -639,14 +676,20 @@ async function awardReward(
     reference_type: reason === "referral" ? "referral" : "task_attempt",
   });
 
-  // Wallet balance is updated automatically by the credit_wallet_on_activity
-  // trigger when the activities row is inserted below. No manual update needed.
+  // Canonical balance ledger is users.bix_balance.
+  await creditUserBix(admin, userId, amount);
 
-  // Insert activity for dashboard tracking (triggers wallet credit automatically)
+  // Insert activity for history/reporting.
   await admin.from("activities").insert({
     user_id: userId,
     activity_type: reason === "referral" ? "referral" : "task_completion",
     points_earned: amount,
     description: `Earned ${amount} BIX from ${reason}`,
+    metadata: {
+      unit: "bix",
+      source: "task-operations",
+      reason,
+      reference_id: referenceId,
+    },
   });
 }

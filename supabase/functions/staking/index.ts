@@ -62,6 +62,60 @@ function respond(data: unknown, status = 200) {
   });
 }
 
+async function readUserBix(admin: any, userId: string) {
+  const { data, error } = await admin
+    .from("users")
+    .select("id, bix_balance, total_bix")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+
+  if (data) {
+    return {
+      balance: Number(data.bix_balance || 0),
+      totalBix: Number(data.total_bix || 0),
+    };
+  }
+
+  const { error: insertError } = await admin.from("users").insert({ id: userId });
+  if (insertError && insertError.code !== "23505") {
+    throw new Error(insertError.message);
+  }
+
+  return { balance: 0, totalBix: 0 };
+}
+
+async function applyUserBixDelta(
+  admin: any,
+  userId: string,
+  balanceDelta: number,
+  totalBixDelta = 0,
+) {
+  const snapshot = await readUserBix(admin, userId);
+  const nextBalance = snapshot.balance + balanceDelta;
+  const nextTotalBix = snapshot.totalBix + totalBixDelta;
+
+  if (nextBalance < 0) {
+    throw new Error("Insufficient BIX balance");
+  }
+
+  const { error } = await admin
+    .from("users")
+    .update({
+      bix_balance: nextBalance,
+      total_bix: nextTotalBix,
+    })
+    .eq("id", userId);
+
+  if (error) throw new Error(error.message);
+
+  return {
+    balance: nextBalance,
+    totalBix: nextTotalBix,
+  };
+}
+
 // ============ Get staking plans ============
 async function getPlans(admin: any) {
   const { data, error } = await admin
@@ -93,8 +147,13 @@ async function createStake(
   body: { plan_id: string; amount: number }
 ) {
   const { plan_id, amount } = body;
-  if (!plan_id || !amount || amount <= 0) {
+  const normalizedAmount = Number(amount);
+  if (!plan_id || !Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
     return respond({ error: "plan_id and positive amount required" }, 400);
+  }
+
+  if (!Number.isInteger(normalizedAmount)) {
+    return respond({ error: "Stake amount must be a whole-number BIX value" }, 400);
   }
 
   // Get plan
@@ -107,31 +166,20 @@ async function createStake(
 
   if (!plan) return respond({ error: "Staking plan not found" }, 404);
 
-  if (amount < Number(plan.min_amount)) {
+  if (normalizedAmount < Number(plan.min_amount)) {
     return respond({ error: `Minimum stake is ${plan.min_amount} BIX` }, 400);
   }
-  if (plan.max_amount && amount > Number(plan.max_amount)) {
+  if (plan.max_amount && normalizedAmount > Number(plan.max_amount)) {
     return respond({ error: `Maximum stake is ${plan.max_amount} BIX` }, 400);
   }
 
-  // Check wallet balance
-  const { data: wallet } = await admin
-    .from("wallets")
-    .select("id, balance")
-    .eq("user_id", userId)
-    .eq("wallet_type", "bix")
-    .eq("is_primary", true)
-    .maybeSingle();
-
-  if (!wallet || Number(wallet.balance) < amount) {
+  const userSnapshot = await readUserBix(admin, userId);
+  if (userSnapshot.balance < normalizedAmount) {
     return respond({ error: "Insufficient BIX balance" }, 400);
   }
 
-  // Deduct from wallet
-  await admin
-    .from("wallets")
-    .update({ balance: Number(wallet.balance) - amount, updated_at: new Date().toISOString() })
-    .eq("id", wallet.id);
+  // Lock the stake amount from spendable balance.
+  await applyUserBixDelta(admin, userId, -normalizedAmount, 0);
 
   // Calculate maturity date
   const maturesAt = new Date();
@@ -143,22 +191,36 @@ async function createStake(
     .insert({
       user_id: userId,
       plan_id,
-      amount,
+      amount: normalizedAmount,
       matures_at: maturesAt.toISOString(),
       status: "active",
     })
     .select()
     .single();
 
-  if (error) return respond({ error: error.message }, 500);
+  if (error) {
+    // Best-effort rollback so the user does not lose balance on stake insert failure.
+    try {
+      await applyUserBixDelta(admin, userId, normalizedAmount, 0);
+    } catch {
+      // Ignore rollback failure; original error is still surfaced.
+    }
+    return respond({ error: error.message }, 500);
+  }
 
   // Log activity
   await admin.from("activities").insert({
     user_id: userId,
     activity_type: "staking",
     points_earned: 0,
-    description: `Staked ${amount} BIX in ${plan.name} plan`,
-    metadata: { stake_id: stake.id, plan_name: plan.name },
+    description: `Staked ${normalizedAmount} BIX in ${plan.name} plan`,
+    metadata: {
+      unit: "bix",
+      source: "staking",
+      action: "stake_created",
+      stake_id: stake.id,
+      plan_name: plan.name,
+    },
   });
 
   return respond({ success: true, stake });
@@ -186,41 +248,44 @@ async function unstake(
   const maturesAt = new Date(stake.matures_at);
   const isEarly = now < maturesAt;
   const penalty = isEarly ? Number(stake.staking_plans.early_unstake_penalty) : 0;
-  const penaltyAmount = Math.floor(Number(stake.amount) * penalty);
-  const returnAmount = Number(stake.amount) - penaltyAmount + Number(stake.accrued_reward);
+  const stakedAmount = Number(stake.amount);
+  const accruedReward = Number(stake.accrued_reward);
+  const payableReward = Math.floor(Math.max(0, accruedReward));
+  const penaltyAmount = Math.floor(stakedAmount * penalty);
+  const returnAmount = stakedAmount - penaltyAmount + payableReward;
 
   // Update stake status
-  await admin
+  const { error: updateStakeError } = await admin
     .from("stakes")
     .update({
       status: isEarly ? "unstaked" : "completed",
       completed_at: now.toISOString(),
+      accrued_reward: payableReward,
     })
     .eq("id", stake_id);
 
-  // Credit wallet: principal (minus penalty) + accrued rewards
-  const { data: wallet } = await admin
-    .from("wallets")
-    .select("id, balance")
-    .eq("user_id", userId)
-    .eq("wallet_type", "bix")
-    .eq("is_primary", true)
-    .maybeSingle();
-
-  if (wallet) {
-    await admin
-      .from("wallets")
-      .update({ balance: Number(wallet.balance) + returnAmount, updated_at: now.toISOString() })
-      .eq("id", wallet.id);
+  if (updateStakeError) {
+    return respond({ error: updateStakeError.message }, 500);
   }
 
+  // Return principal (minus penalty) + whole-number rewards to spendable balance.
+  await applyUserBixDelta(admin, userId, returnAmount, payableReward);
+
   // Log activity for staking rewards earned (if any)
-  if (Number(stake.accrued_reward) > 0) {
+  if (payableReward > 0) {
     await admin.from("activities").insert({
       user_id: userId,
       activity_type: "staking",
-      points_earned: Number(stake.accrued_reward),
-      description: `Staking reward: ${Number(stake.accrued_reward).toFixed(2)} BIX from ${stake.staking_plans.name}`,
+      points_earned: payableReward,
+      description: `Staking reward: ${payableReward.toFixed(2)} BIX from ${stake.staking_plans.name}`,
+      metadata: {
+        unit: "bix",
+        source: "staking",
+        action: "unstake_reward",
+        stake_id,
+        plan_name: stake.staking_plans.name,
+        early_unstake: isEarly,
+      },
     });
   }
 
@@ -228,7 +293,7 @@ async function unstake(
     success: true,
     returned: returnAmount,
     penalty: penaltyAmount,
-    reward: Number(stake.accrued_reward),
+    reward: payableReward,
     early: isEarly,
   });
 }
@@ -252,39 +317,38 @@ async function claimRewards(
   if (!stake) return respond({ error: "Active stake not found" }, 404);
 
   const reward = Number(stake.accrued_reward);
-  if (reward <= 0) return respond({ error: "No rewards to claim" }, 400);
+  const claimableReward = Math.floor(Math.max(0, reward));
+  if (claimableReward <= 0) return respond({ error: "No claimable whole-number rewards yet" }, 400);
 
-  // Reset accrued reward
-  await admin
+  // Keep fractional remainder (if any) for the next claim.
+  const remainingReward = reward - claimableReward;
+  const { error: resetError } = await admin
     .from("stakes")
-    .update({ accrued_reward: 0 })
+    .update({ accrued_reward: remainingReward })
     .eq("id", stake_id);
 
-  // Credit wallet
-  const { data: wallet } = await admin
-    .from("wallets")
-    .select("id, balance")
-    .eq("user_id", userId)
-    .eq("wallet_type", "bix")
-    .eq("is_primary", true)
-    .maybeSingle();
-
-  if (wallet) {
-    await admin
-      .from("wallets")
-      .update({ balance: Number(wallet.balance) + reward, updated_at: new Date().toISOString() })
-      .eq("id", wallet.id);
+  if (resetError) {
+    return respond({ error: resetError.message }, 500);
   }
+
+  // Rewards are newly minted BIX.
+  await applyUserBixDelta(admin, userId, claimableReward, claimableReward);
 
   // Log activity
   await admin.from("activities").insert({
     user_id: userId,
     activity_type: "staking",
-    points_earned: reward,
-    description: `Claimed ${reward.toFixed(2)} BIX staking reward`,
+    points_earned: claimableReward,
+    description: `Claimed ${claimableReward.toFixed(2)} BIX staking reward`,
+    metadata: {
+      unit: "bix",
+      source: "staking",
+      action: "claim_rewards",
+      stake_id,
+    },
   });
 
-  return respond({ success: true, claimed: reward });
+  return respond({ success: true, claimed: claimableReward, remaining_reward: remainingReward });
 }
 
 // ============ Process daily accruals (called by cron) ============
@@ -320,40 +384,38 @@ async function processAccruals(admin: any, body: any) {
     if (now >= maturesAt) {
       // Auto-complete matured stakes: credit principal + all rewards
       const totalReward = Number(stake.accrued_reward) + dailyReward;
+      const payableReward = Math.floor(Math.max(0, totalReward));
 
-      await admin
+      const { error: completeError } = await admin
         .from("stakes")
         .update({
           status: "completed",
           completed_at: now.toISOString(),
-          accrued_reward: totalReward,
+          accrued_reward: payableReward,
           last_accrual_at: now.toISOString(),
         })
         .eq("id", stake.id);
 
-      // Credit wallet
-      const returnAmount = Number(stake.amount) + totalReward;
-      const { data: wallet } = await admin
-        .from("wallets")
-        .select("id, balance")
-        .eq("user_id", stake.user_id)
-        .eq("wallet_type", "bix")
-        .eq("is_primary", true)
-        .maybeSingle();
-
-      if (wallet) {
-        await admin
-          .from("wallets")
-          .update({ balance: Number(wallet.balance) + returnAmount, updated_at: now.toISOString() })
-          .eq("id", wallet.id);
+      if (completeError) {
+        return respond({ error: completeError.message }, 500);
       }
 
-      if (totalReward > 0) {
+      const returnAmount = Number(stake.amount) + payableReward;
+      await applyUserBixDelta(admin, stake.user_id, returnAmount, payableReward);
+
+      if (payableReward > 0) {
         await admin.from("activities").insert({
           user_id: stake.user_id,
           activity_type: "staking",
-          points_earned: totalReward,
-          description: `Staking completed: earned ${totalReward.toFixed(2)} BIX from ${stake.staking_plans.name}`,
+          points_earned: payableReward,
+          description: `Staking completed: earned ${payableReward.toFixed(2)} BIX from ${stake.staking_plans.name}`,
+          metadata: {
+            unit: "bix",
+            source: "staking",
+            action: "auto_complete",
+            stake_id: stake.id,
+            plan_name: stake.staking_plans.name,
+          },
         });
       }
 

@@ -4,94 +4,131 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database, Json } from "@/integrations/supabase/types";
 import { awardXp } from "@/lib/progressionApi";
 import { formatXp } from "@/lib/progression";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { CheckCircle2, Clock, Target } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 type MissionCategory = "daily" | "weekly" | "referral" | "challenges" | "season";
-
-type MissionItem = {
-  id: string;
-  category: MissionCategory;
-  name: string;
-  xpReward: number;
-  difficulty: "Easy" | "Medium" | "Hard";
-  levelRequired: number;
-  cooldown: string;
-  target: number;
-};
-
-const MISSIONS: MissionItem[] = [
-  { id: "daily-boost-wheel", category: "daily", name: "Daily Boost Wheel", xpReward: 50, difficulty: "Easy", levelRequired: 1, cooldown: "24h", target: 1 },
-  { id: "daily-activity-log", category: "daily", name: "Log 1 Activity", xpReward: 40, difficulty: "Easy", levelRequired: 1, cooldown: "24h", target: 1 },
-  { id: "weekly-completions", category: "weekly", name: "Complete 5 Missions", xpReward: 150, difficulty: "Medium", levelRequired: 2, cooldown: "7d", target: 5 },
-  { id: "weekly-streak", category: "weekly", name: "Maintain 3-Day Streak", xpReward: 120, difficulty: "Medium", levelRequired: 2, cooldown: "7d", target: 3 },
-  { id: "referral-3", category: "referral", name: "Invite 3 Friends", xpReward: 200, difficulty: "Hard", levelRequired: 2, cooldown: "24h", target: 3 },
-  { id: "referral-5", category: "referral", name: "Invite 5 Friends", xpReward: 320, difficulty: "Hard", levelRequired: 3, cooldown: "24h", target: 5 },
-  { id: "challenge-elite", category: "challenges", name: "Elite Challenge Run", xpReward: 250, difficulty: "Hard", levelRequired: 3, cooldown: "48h", target: 1 },
-  { id: "challenge-xp", category: "challenges", name: "Earn 500 XP This Week", xpReward: 260, difficulty: "Hard", levelRequired: 3, cooldown: "7d", target: 1 },
-  { id: "season-qualifier", category: "season", name: "Season Qualifier", xpReward: 300, difficulty: "Hard", levelRequired: 4, cooldown: "Season", target: 1 },
-  { id: "season-event", category: "season", name: "Season Event Completion", xpReward: 400, difficulty: "Hard", levelRequired: 4, cooldown: "Season", target: 1 },
-];
-
-type ActivityRow = Record<string, unknown> & {
-  description?: string | null;
-  created_at?: string;
-  metadata?: Record<string, unknown> | null;
-};
+type MissionDifficulty = "Easy" | "Medium" | "Hard";
+type TaskRow = Database["public"]["Tables"]["tasks"]["Row"];
+type ActivityRow = Database["public"]["Tables"]["activities"]["Row"];
 
 type ReferralRow = {
   id: string;
   qualified: boolean;
 };
 
-function difficultyClass(level: MissionItem["difficulty"]): string {
+type MissionTask = {
+  id: string;
+  name: string;
+  description: string | null;
+  category: MissionCategory;
+  taskType: TaskRow["task_type"];
+  xpReward: number;
+  difficulty: MissionDifficulty;
+  levelRequired: number;
+  cooldown: string;
+  target: number;
+};
+
+type JsonRecord = Record<string, unknown>;
+
+const CATEGORY_ORDER: MissionCategory[] = ["daily", "weekly", "referral", "challenges", "season"];
+
+const CATEGORY_LABELS: Record<MissionCategory, string> = {
+  daily: "Daily Missions",
+  weekly: "Weekly Missions",
+  referral: "Referral Missions",
+  challenges: "Challenges",
+  season: "Season Events",
+};
+
+const TASK_TYPE_CATEGORY_MAP: Record<TaskRow["task_type"], MissionCategory> = {
+  login: "daily",
+  task_completion: "weekly",
+  referral: "referral",
+  social: "challenges",
+  staking: "season",
+  custom: "daily",
+};
+
+function difficultyClass(level: MissionDifficulty): string {
   if (level === "Hard") return "bg-rose-500/15 text-rose-300 border-rose-400/30";
   if (level === "Medium") return "bg-amber-500/15 text-amber-300 border-amber-400/30";
   return "bg-emerald-500/15 text-emerald-300 border-emerald-400/30";
 }
 
-async function insertActivityWithFallback(userId: string, mission: MissionItem): Promise<void> {
-  const payloads: Record<string, unknown>[] = [
-    {
-      user_id: userId,
-      activity_type: "custom",
-      description: mission.name,
-      points_earned: mission.xpReward,
-      metadata: { mission_id: mission.id, source: "missions" },
-    },
-    {
-      user_id: userId,
-      activity_type: "custom",
-      description: mission.name,
-      points_earned: mission.xpReward,
-      metadata: { mission_id: mission.id, source: "missions" },
-    },
-    {
-      user_id: userId,
-      description: mission.name,
-      xp_amount: mission.xpReward,
-    },
-    {
-      user_id: userId,
-      description: mission.name,
-      points_earned: mission.xpReward,
-    },
-  ];
+function asRecord(value: Json | null | undefined): JsonRecord | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as JsonRecord;
+}
 
-  let lastError: Error | null = null;
+function asCategory(value: unknown): MissionCategory | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toLowerCase();
+  return CATEGORY_ORDER.find((item) => item === normalized) || null;
+}
 
-  for (const payload of payloads) {
-    const { error } = await supabase.from("activities").insert(payload as never);
-    if (!error) return;
-    lastError = new Error(error.message);
-  }
+function asDifficulty(value: unknown): MissionDifficulty | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "easy") return "Easy";
+  if (normalized === "medium") return "Medium";
+  if (normalized === "hard") return "Hard";
+  return null;
+}
 
-  throw lastError || new Error("Unable to insert activity");
+function asPositiveInt(value: unknown): number | null {
+  const numeric = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(numeric) || !Number.isInteger(numeric) || numeric <= 0) return null;
+  return numeric;
+}
+
+function inferDifficulty(xpReward: number): MissionDifficulty {
+  if (xpReward >= 250) return "Hard";
+  if (xpReward >= 120) return "Medium";
+  return "Easy";
+}
+
+function defaultCooldown(category: MissionCategory): string {
+  if (category === "daily") return "24h";
+  if (category === "weekly") return "7d";
+  if (category === "challenges") return "48h";
+  if (category === "season") return "Season";
+  return "24h";
+}
+
+function toMissionTask(task: TaskRow): MissionTask {
+  const requirements = asRecord(task.requirements);
+  const xpReward = Math.max(0, Math.floor(Number(task.reward_points || 0)));
+  const category = asCategory(requirements?.category) || TASK_TYPE_CATEGORY_MAP[task.task_type] || "daily";
+  const difficulty = asDifficulty(requirements?.difficulty) || inferDifficulty(xpReward);
+  const levelRequired = asPositiveInt(requirements?.level_required) || 1;
+  const target =
+    asPositiveInt(requirements?.target) ||
+    (task.max_completions_per_user && task.max_completions_per_user > 0 ? task.max_completions_per_user : 1);
+  const rawCooldown = requirements?.cooldown;
+  const cooldown = typeof rawCooldown === "string" && rawCooldown.trim().length > 0
+    ? rawCooldown.trim()
+    : defaultCooldown(category);
+
+  return {
+    id: task.id,
+    name: task.name,
+    description: task.description,
+    category,
+    taskType: task.task_type,
+    xpReward,
+    difficulty,
+    levelRequired,
+    cooldown,
+    target,
+  };
 }
 
 export default function Tasks() {
@@ -100,13 +137,27 @@ export default function Tasks() {
   const [category, setCategory] = useState<MissionCategory>("daily");
   const [pendingMission, setPendingMission] = useState<string | null>(null);
 
+  const { data: tasks, isLoading: tasksLoading } = useQuery({
+    queryKey: ["mission-tasks"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tasks")
+        .select("*")
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      return (data ?? []) as TaskRow[];
+    },
+  });
+
   const { data: activities } = useQuery({
     queryKey: ["mission-activities", session?.user?.id],
     enabled: !!session?.user?.id,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("activities")
-        .select("*")
+        .select("id, task_id, description, metadata, created_at")
         .eq("user_id", session!.user.id)
         .order("created_at", { ascending: false })
         .limit(500);
@@ -135,12 +186,42 @@ export default function Tasks() {
     [referralRows],
   );
 
-  const visibleMissions = useMemo(
-    () => MISSIONS.filter((mission) => mission.category === category),
-    [category],
-  );
+  const missionTasks = useMemo(() => {
+    const now = Date.now();
+    return (tasks ?? [])
+      .filter((task) => {
+        if (!task.start_date && !task.end_date) return true;
+        const startsOk = !task.start_date || new Date(task.start_date).getTime() <= now;
+        const endsOk = !task.end_date || new Date(task.end_date).getTime() >= now;
+        return startsOk && endsOk;
+      })
+      .map(toMissionTask);
+  }, [tasks]);
 
-  const getProgress = (mission: MissionItem) => {
+  const availableCategories = useMemo(() => {
+    const seen = new Set(missionTasks.map((task) => task.category));
+    return CATEGORY_ORDER.filter((value) => seen.has(value));
+  }, [missionTasks]);
+
+  useEffect(() => {
+    if (availableCategories.length === 0) return;
+    if (!availableCategories.includes(category)) {
+      setCategory(availableCategories[0]);
+    }
+  }, [availableCategories, category]);
+
+  const visibleMissions = useMemo(() => missionTasks.filter((mission) => mission.category === category), [category, missionTasks]);
+
+  const completedByTaskId = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const row of activities ?? []) {
+      if (!row.task_id) continue;
+      map.set(row.task_id, (map.get(row.task_id) || 0) + 1);
+    }
+    return map;
+  }, [activities]);
+
+  const getProgress = (mission: MissionTask) => {
     if (mission.category === "referral") {
       const progress = Math.min(qualifiedReferrals, mission.target);
       return {
@@ -150,37 +231,23 @@ export default function Tasks() {
       };
     }
 
-    const current = (activities ?? []).filter((row) => {
-      const text = typeof row.description === "string" ? row.description.toLowerCase() : "";
-      return text.includes(mission.name.toLowerCase());
-    }).length;
-    const progress = Math.min(current, mission.target);
+    const completedCount = completedByTaskId.get(mission.id) || 0;
+    const completed = completedCount > 0;
+    const progress = completed ? mission.target : 0;
     return {
       current: progress,
       percent: Math.max(0, Math.min(100, (progress / mission.target) * 100)),
-      completed: progress >= mission.target,
+      completed,
     };
   };
 
-  const isMissionClaimed = (mission: MissionItem) => {
-    return (activities ?? []).some((row) => {
-      const descriptionMatch =
-        typeof row.description === "string" &&
-        row.description.toLowerCase() === mission.name.toLowerCase();
-
-      const metadata = row.metadata;
-      const metadataMatch =
-        metadata &&
-        typeof metadata === "object" &&
-        "mission_id" in metadata &&
-        metadata.mission_id === mission.id;
-
-      return Boolean(descriptionMatch || metadataMatch);
-    });
+  const isMissionClaimed = (mission: MissionTask) => {
+    return (completedByTaskId.get(mission.id) || 0) > 0;
   };
 
-  const handleCompleteMission = async (mission: MissionItem) => {
+  const handleCompleteMission = async (mission: MissionTask) => {
     if (!session?.user?.id) return;
+
     if (Number(user?.current_level || 1) < mission.levelRequired) {
       toast.error(`Level ${mission.levelRequired} required`);
       return;
@@ -199,14 +266,56 @@ export default function Tasks() {
       }
     }
 
+    if (isMissionClaimed(mission)) {
+      toast.error("Mission already completed");
+      return;
+    }
+
     setPendingMission(mission.id);
     try {
-      await awardXp(mission.xpReward, session.user.id);
-      await insertActivityWithFallback(session.user.id, mission);
+      const { data: insertedActivity, error: activityError } = await supabase
+        .from("activities")
+        .insert({
+          user_id: session.user.id,
+          task_id: mission.id,
+          activity_type: "custom",
+          points_earned: mission.xpReward,
+          description: mission.name,
+          metadata: {
+            unit: "xp",
+            source: "missions-ui",
+            mission_id: mission.id,
+            task_type: mission.taskType,
+            category: mission.category,
+            reward_xp: mission.xpReward,
+          },
+        } as never)
+        .select("id")
+        .single();
+
+      if (activityError) {
+        if (activityError.code === "23505") {
+          throw new Error("Mission already completed");
+        }
+        throw new Error(activityError.message);
+      }
+
+      if (mission.xpReward > 0) {
+        try {
+          await awardXp(mission.xpReward, session.user.id);
+        } catch (error: unknown) {
+          if (insertedActivity?.id) {
+            await supabase.from("activities").delete().eq("id", insertedActivity.id);
+          }
+          throw error;
+        }
+      }
+
       toast.success(`Mission completed: +${formatXp(mission.xpReward)} XP`);
       queryClient.invalidateQueries({ queryKey: ["mission-activities"] });
       queryClient.invalidateQueries({ queryKey: ["user-core"] });
       queryClient.invalidateQueries({ queryKey: ["progression-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Mission failed";
       toast.error(message);
@@ -233,18 +342,22 @@ export default function Tasks() {
             <Target className="h-7 w-7 text-primary" />
             Missions
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">Complete missions to earn XP and grow your level.</p>
+          <p className="text-sm text-muted-foreground mt-1">Live missions are loaded from your admin-managed tasks table.</p>
         </motion.div>
 
         <Tabs value={category} onValueChange={(value) => setCategory(value as MissionCategory)} className="w-full">
           <TabsList className="w-full grid grid-cols-2 gap-2 md:grid-cols-5 bg-transparent p-0">
-            <TabsTrigger value="daily" className="glass rounded-xl py-2">Daily Missions</TabsTrigger>
-            <TabsTrigger value="weekly" className="glass rounded-xl py-2">Weekly Missions</TabsTrigger>
-            <TabsTrigger value="referral" className="glass rounded-xl py-2">Referral Missions</TabsTrigger>
-            <TabsTrigger value="challenges" className="glass rounded-xl py-2">Challenges</TabsTrigger>
-            <TabsTrigger value="season" className="glass rounded-xl py-2">Season Events</TabsTrigger>
+            {CATEGORY_ORDER.map((value) => (
+              <TabsTrigger key={value} value={value} className="glass rounded-xl py-2">
+                {CATEGORY_LABELS[value]}
+              </TabsTrigger>
+            ))}
           </TabsList>
         </Tabs>
+
+        {tasksLoading ? (
+          <div className="glass rounded-2xl p-5 text-sm text-muted-foreground">Loading missions...</div>
+        ) : null}
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {visibleMissions.map((mission) => {
@@ -261,6 +374,7 @@ export default function Tasks() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-lg font-semibold">{mission.name}</p>
+                    {mission.description ? <p className="text-sm text-muted-foreground mt-1">{mission.description}</p> : null}
                     <p className="text-sm text-muted-foreground">{`Reward: +${formatXp(mission.xpReward)} XP`}</p>
                   </div>
                   <span className={`text-[11px] rounded-full border px-2 py-0.5 ${difficultyClass(mission.difficulty)}`}>
@@ -289,7 +403,7 @@ export default function Tasks() {
 
                 <XpProgressBar value={progress.percent} />
 
-                {(mission.category === "referral" ? claimed : progress.completed) ? (
+                {claimed ? (
                   <div className="rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300 flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4" />
                     Mission completed
@@ -302,9 +416,11 @@ export default function Tasks() {
                   >
                     {pendingMission === mission.id ? (
                       <>
-                        <Clock className="h-4 w-4 mr-1.5 animate-spin" />
-                        Submitting...
-                      </>
+                      <Clock className="h-4 w-4 mr-1.5 animate-spin" />
+                      Submitting...
+                    </>
+                    ) : Number(user?.current_level || 1) < mission.levelRequired ? (
+                      `Reach Level ${mission.levelRequired}`
                     ) : referralNeedsProgress ? (
                       `Invite ${mission.target - progress.current} more`
                     ) : (
@@ -316,6 +432,12 @@ export default function Tasks() {
             );
           })}
         </div>
+
+        {!tasksLoading && visibleMissions.length === 0 ? (
+          <div className="glass rounded-2xl p-5 text-sm text-muted-foreground">
+            No active missions in this category yet.
+          </div>
+        ) : null}
       </div>
     </AppLayout>
   );

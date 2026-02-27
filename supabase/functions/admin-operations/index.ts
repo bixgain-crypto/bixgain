@@ -244,13 +244,20 @@ async function updateUser(admin: ReturnType<typeof createClient>, adminUserId: s
       return respond({ error: "You cannot remove your own admin access" }, 400);
     }
     userPatch.is_admin = isAdminValue;
+    if (!isAdminValue && !hasOwn(body, "admin_role")) {
+      userPatch.admin_role = "user";
+    }
   }
 
   if (hasOwn(body, "admin_role")) {
     const adminRole = asString(body.admin_role);
     if (!adminRole) return respond({ error: "admin_role cannot be empty" }, 400);
     userPatch.admin_role = adminRole;
-    if (adminRole !== "user") {
+    if (adminRole === "user") {
+      if (!hasOwn(body, "is_admin")) {
+        userPatch.is_admin = false;
+      }
+    } else {
       userPatch.is_admin = true;
     }
   }
@@ -524,6 +531,7 @@ async function grantRewards(admin: ReturnType<typeof createClient>, adminUserId:
     points_earned: xpAmount,
     description: activityDescription,
     metadata: {
+      unit: xpAmount > 0 ? "xp" : "bix",
       source: "admin_console",
       reason,
       awarded_xp: xpAmount,
@@ -633,6 +641,10 @@ async function createActivity(admin: ReturnType<typeof createClient>, adminUserI
   }
 
   const metadata = parseMetadata(body.metadata) || {};
+  const requestedUnit = typeof metadata.unit === "string" ? metadata.unit.trim().toLowerCase() : "";
+  const resolvedUnit = requestedUnit === "xp" || requestedUnit === "bix"
+    ? requestedUnit
+    : (grantXp ? "xp" : "bix");
   const { data: activity, error } = await admin
     .from("activities")
     .insert({
@@ -642,6 +654,7 @@ async function createActivity(admin: ReturnType<typeof createClient>, adminUserI
       description: asNullableString(body.description),
       metadata: {
         ...metadata,
+        unit: resolvedUnit,
         source: "admin_console",
         admin_user_id: adminUserId,
         grant_xp: grantXp,
