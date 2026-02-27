@@ -676,7 +676,7 @@ async function awardReward(
     reference_type: reason === "referral" ? "referral" : "task_attempt",
   });
 
-  // Canonical balance ledger is users.bix_balance.
+  // Canonical balance ledger is users.bix_balance. 
   await creditUserBix(admin, userId, amount);
 
   // Insert activity for history/reporting.

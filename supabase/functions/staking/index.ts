@@ -128,7 +128,7 @@ async function getPlans(admin: any) {
   return respond({ plans: data });
 }
 
-// ============ Get user's stakes ============
+// ============ Get user's stakes ============ 
 async function getMyStakes(admin: any, userId: string) {
   const { data, error } = await admin
     .from("stakes")
