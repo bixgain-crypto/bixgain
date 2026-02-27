@@ -1,9 +1,9 @@
 import { AppLayout } from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
+import { useAppData } from "@/context/AppDataContext";
 import { useAuth } from "@/hooks/useAuth";
 import { claimDailyReward } from "@/lib/progressionApi";
 import { formatXp } from "@/lib/progression";
-import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import { Orbit, RotateCw, Sparkles } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -26,7 +26,7 @@ function parseClaimResult(payload: Record<string, unknown>): ClaimResult {
 
 export default function SpinToEarn() {
   const { user } = useAuth();
-  const queryClient = useQueryClient();
+  const { refreshActivities, refreshUserProfile, refreshLeaderboard } = useAppData();
   const [spinning, setSpinning] = useState(false);
   const [rotation, setRotation] = useState(0);
   const [result, setResult] = useState<ClaimResult | null>(null);
@@ -62,8 +62,12 @@ export default function SpinToEarn() {
         setResult(parsed);
         setResultLabel(label);
         toast.success(`Daily reward claimed: +${formatXp(parsed.xp)} XP`);
-        queryClient.invalidateQueries({ queryKey: ["user-core"] });
-        queryClient.invalidateQueries({ queryKey: ["progression-summary"] });
+        await Promise.all([
+          refreshUserProfile(),
+          refreshActivities(),
+          refreshLeaderboard("weekly"),
+          refreshLeaderboard("season"),
+        ]);
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : "Unable to claim daily reward";
         toast.error(message);

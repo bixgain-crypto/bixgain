@@ -2,10 +2,8 @@ import { AppLayout } from "@/components/AppLayout";
 import { XpProgressBar } from "@/components/XpProgressBar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useAppData } from "@/context/AppDataContext";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
-import { generateReferralCode } from "@/lib/referrals";
-import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
   CheckCircle2,
@@ -68,81 +66,9 @@ function getReferralStatus(row: ReferralRow): { label: string; className: string
   };
 }
 
-async function ensureReferralCode(userId: string, username: string | null | undefined): Promise<string> {
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("referral_code")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (profileError) throw profileError;
-
-  const existing = profile?.referral_code?.trim();
-  if (existing) {
-    return existing.toUpperCase();
-  }
-
-  const baseCode = generateReferralCode(userId, username);
-
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    const candidate =
-      attempt === 0
-        ? baseCode
-        : `${baseCode.slice(0, 8)}${Math.floor(1000 + Math.random() * 9000)}`;
-
-    const { error } = await supabase
-      .from("profiles")
-      .upsert({ user_id: userId, referral_code: candidate }, { onConflict: "user_id" });
-
-    if (!error) return candidate;
-    if (error.code !== "23505") throw error;
-  }
-
-  throw new Error("Unable to generate unique referral code");
-}
-
 export default function Referrals() {
-  const { session, user } = useAuth();
-
-  const referralCodeQuery = useQuery({
-    queryKey: ["referral-code", session?.user?.id, user?.username],
-    enabled: !!session?.user?.id,
-    queryFn: async () =>
-      ensureReferralCode(
-        session!.user.id,
-        user?.username || session?.user?.email?.split("@")[0] || null,
-      ),
-  });
-
-  const referralsQuery = useQuery({
-    queryKey: ["referrals", session?.user?.id],
-    enabled: !!session?.user?.id,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("referrals")
-        .select("id, referrer_id, referred_id, qualified, qualified_at, reward_granted, created_at")
-        .eq("referrer_id", session!.user.id)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      return (data ?? []) as ReferralRow[];
-    },
-  });
-
-  const referralRewardsQuery = useQuery({
-    queryKey: ["referral-reward-bix", session?.user?.id],
-    enabled: !!session?.user?.id,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("activities")
-        .select("points_earned")
-        .eq("user_id", session!.user.id)
-        .eq("activity_type", "referral");
-
-      if (error) throw error;
-      return (data ?? []).reduce((sum, row) => sum + Number(row.points_earned || 0), 0);
-    },
-  });
+  const { session } = useAuth();
+  const { referralCode, referrals, activities, loading } = useAppData();
 
   if (!session?.user?.id) {
     return (
@@ -154,14 +80,15 @@ export default function Referrals() {
     );
   }
 
-  const referralCode = referralCodeQuery.data || "";
-  const referrals = referralsQuery.data ?? [];
-
-  const totalInvites = referrals.length;
-  const qualifiedInvites = referrals.filter((row) => row.qualified).length;
+  const referralRows = (referrals ?? []) as unknown as ReferralRow[];
+  const totalInvites = referralRows.length;
+  const qualifiedInvites = referralRows.filter((row) => row.qualified).length;
   const pendingInvites = totalInvites - qualifiedInvites;
   const conversionRate = totalInvites > 0 ? Math.round((qualifiedInvites / totalInvites) * 100) : 0;
-  const referralRewardsBix = Number(referralRewardsQuery.data || 0);
+  const referralRewardsBix = (activities ?? []).reduce((sum, row) => {
+    if (row.activity_type !== "referral") return sum;
+    return sum + Number(row.points_earned || 0);
+  }, 0);
 
   const baseUrl = import.meta.env.VITE_PUBLIC_URL || window.location.origin;
   const referralLink = referralCode
@@ -218,7 +145,9 @@ export default function Referrals() {
               </div>
               <div className="rounded-xl border border-primary/30 bg-primary/10 px-4 py-2 text-right">
                 <p className="text-xs uppercase tracking-wider text-muted-foreground">Referral Code</p>
-                <p className="font-mono text-lg font-bold text-primary">{referralCode || "Loading..."}</p>
+                <p className="font-mono text-lg font-bold text-primary">
+                  {loading.referralCode ? "Loading..." : (referralCode || "-")}
+                </p>
               </div>
             </div>
 
@@ -365,9 +294,13 @@ export default function Referrals() {
             <Gift className="h-5 w-5 text-primary" />
             Referral Activity
           </h2>
-          {referrals.length > 0 ? (
+          {loading.referrals ? (
+            <div className="rounded-xl border border-dashed border-border/70 bg-secondary/20 p-6 text-center">
+              <p className="text-sm text-muted-foreground">Loading referrals...</p>
+            </div>
+          ) : referralRows.length > 0 ? (
             <div className="space-y-2">
-              {referrals.map((row) => {
+              {referralRows.map((row) => {
                 const status = getReferralStatus(row);
                 const shortId = row.referred_id.slice(0, 8);
                 return (

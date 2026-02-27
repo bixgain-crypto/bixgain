@@ -4,10 +4,10 @@ import { XpProgressBar } from "@/components/XpProgressBar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useAppData } from "@/context/AppDataContext";
 import { useAuth } from "@/hooks/useAuth";
 import { changeUsername } from "@/lib/progressionApi";
 import { formatXp, getLevelProgress } from "@/lib/progression";
-import { useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { CalendarDays, User, UserRoundPen } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -15,7 +15,7 @@ import { toast } from "sonner";
 
 export default function Profile() {
   const { user } = useAuth();
-  const queryClient = useQueryClient();
+  const { refreshUserProfile } = useAppData();
   const [usernameInput, setUsernameInput] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -37,7 +37,7 @@ export default function Profile() {
     try {
       await changeUsername(next);
       toast.success("Username updated");
-      queryClient.invalidateQueries({ queryKey: ["user-core"] });
+      await refreshUserProfile();
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Failed to update username";
       toast.error(message);

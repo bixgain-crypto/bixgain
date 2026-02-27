@@ -1,5 +1,5 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { invokeStaking } from "@/lib/stakingApi";
+import { useAppData } from "@/context/AppDataContext";
 import { useAuth } from "@/hooks/useAuth";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -34,32 +34,23 @@ interface Stake {
 }
 
 export default function StakingTab() {
-  const { session, wallet } = useAuth();
-  const queryClient = useQueryClient();
+  const { wallet } = useAuth();
+  const {
+    stakes,
+    stakingPlans,
+    loading: appLoading,
+    refreshStakes,
+    refreshWallet,
+    refreshUserProfile,
+    refreshAdminStats,
+  } = useAppData();
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [stakeAmount, setStakeAmount] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const { data: plansData } = useQuery({
-    queryKey: ["staking-plans"],
-    queryFn: async () => {
-      const res = await invokeStaking("get_plans");
-      return res.plans as StakingPlan[];
-    },
-  });
-
-  const { data: stakesData } = useQuery({
-    queryKey: ["my-stakes", session?.user?.id],
-    enabled: !!session?.user?.id,
-    queryFn: async () => {
-      const res = await invokeStaking("get_my_stakes");
-      return res.stakes as Stake[];
-    },
-  });
-
-  const plans = plansData || [];
-  const stakes = stakesData || [];
-  const activeStakes = stakes.filter((s) => s.status === "active");
+  const plans = (stakingPlans || []) as StakingPlan[];
+  const userStakes = (stakes || []) as Stake[];
+  const activeStakes = userStakes.filter((s) => s.status === "active");
   const totalStaked = activeStakes.reduce((sum, s) => sum + Number(s.amount), 0);
   const totalRewards = activeStakes.reduce((sum, s) => sum + Number(s.accrued_reward), 0);
 
@@ -73,11 +64,9 @@ export default function StakingTab() {
       toast.success(`Staked ${amount} BIX successfully!`);
       setSelectedPlan(null);
       setStakeAmount("");
-      queryClient.invalidateQueries({ queryKey: ["my-stakes"] });
-      queryClient.invalidateQueries({ queryKey: ["wallet"] });
-      queryClient.invalidateQueries({ queryKey: ["user-core"] });
-    } catch (e: any) {
-      toast.error(e.message);
+      await Promise.all([refreshStakes(), refreshWallet(), refreshUserProfile(), refreshAdminStats()]);
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Stake failed");
     }
     setLoading(false);
   };
@@ -91,11 +80,9 @@ export default function StakingTab() {
       } else {
         toast.success(`Stake completed! Returned ${res.returned.toFixed(2)} BIX`);
       }
-      queryClient.invalidateQueries({ queryKey: ["my-stakes"] });
-      queryClient.invalidateQueries({ queryKey: ["wallet"] });
-      queryClient.invalidateQueries({ queryKey: ["user-core"] });
-    } catch (e: any) {
-      toast.error(e.message);
+      await Promise.all([refreshStakes(), refreshWallet(), refreshUserProfile(), refreshAdminStats()]);
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Unstake failed");
     }
     setLoading(false);
   };
@@ -105,11 +92,9 @@ export default function StakingTab() {
     try {
       const res = await invokeStaking("claim_rewards", { stake_id: stakeId });
       toast.success(`Claimed ${res.claimed.toFixed(2)} BIX!`);
-      queryClient.invalidateQueries({ queryKey: ["my-stakes"] });
-      queryClient.invalidateQueries({ queryKey: ["wallet"] });
-      queryClient.invalidateQueries({ queryKey: ["user-core"] });
-    } catch (e: any) {
-      toast.error(e.message);
+      await Promise.all([refreshStakes(), refreshWallet(), refreshUserProfile(), refreshAdminStats()]);
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Claim failed");
     }
     setLoading(false);
   };
@@ -250,11 +235,11 @@ export default function StakingTab() {
       </AnimatePresence>
 
       {/* Active stakes */}
-      {stakes.length > 0 && (
+      {userStakes.length > 0 && (
         <div>
           <h3 className="text-lg font-semibold mb-3">Your Stakes</h3>
           <div className="space-y-3">
-            {stakes.map((stake, i) => {
+            {userStakes.map((stake, i) => {
               const isActive = stake.status === "active";
               const progress = getProgress(stake);
               const daysLeft = getDaysLeft(stake);
@@ -338,6 +323,9 @@ export default function StakingTab() {
             })}
           </div>
         </div>
+      )}
+      {appLoading.stakes && (
+        <p className="text-sm text-muted-foreground">Refreshing staking data...</p>
       )}
     </div>
   );

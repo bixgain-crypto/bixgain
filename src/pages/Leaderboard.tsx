@@ -1,18 +1,17 @@
 import { AppLayout } from "@/components/AppLayout";
 import { LevelBadge } from "@/components/LevelBadge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAppData } from "@/context/AppDataContext";
 import { useAuth } from "@/hooks/useAuth";
 import {
-  fetchLeaderboard,
   LeaderboardEntry,
   LeaderboardPeriod,
   LeaderboardResponse,
 } from "@/lib/leaderboardApi";
 import { formatXp } from "@/lib/progression";
-import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { Trophy } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 function buildRows(data: LeaderboardResponse | undefined): LeaderboardEntry[] {
   if (!data) return [];
@@ -23,26 +22,16 @@ function buildRows(data: LeaderboardResponse | undefined): LeaderboardEntry[] {
 
 export default function Leaderboard() {
   const { session } = useAuth();
+  const { leaderboards, refreshLeaderboard, loading } = useAppData();
   const [period, setPeriod] = useState<LeaderboardPeriod>("weekly");
 
-  const weeklyQuery = useQuery({
-    queryKey: ["leaderboard", "weekly", "full"],
-    enabled: !!session?.user?.id,
-    queryFn: () => fetchLeaderboard("weekly", 100),
-  });
-  const seasonQuery = useQuery({
-    queryKey: ["leaderboard", "season", "full"],
-    enabled: !!session?.user?.id,
-    queryFn: () => fetchLeaderboard("season", 100),
-  });
-  const allTimeQuery = useQuery({
-    queryKey: ["leaderboard", "all_time", "full"],
-    enabled: !!session?.user?.id,
-    queryFn: () => fetchLeaderboard("all_time", 100),
-  });
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    void refreshLeaderboard(period);
+  }, [period, refreshLeaderboard, session?.user?.id]);
 
-  const activeQuery = period === "weekly" ? weeklyQuery : period === "season" ? seasonQuery : allTimeQuery;
-  const rows = useMemo(() => buildRows(activeQuery.data), [activeQuery.data]);
+  const activeData = leaderboards[period];
+  const rows = useMemo(() => buildRows(activeData), [activeData]);
 
   if (!session?.user?.id) {
     return (
@@ -83,7 +72,7 @@ export default function Leaderboard() {
             <span>Level</span>
           </div>
 
-          {activeQuery.isLoading ? (
+          {loading.leaderboard && !activeData ? (
             <div className="p-6 text-sm text-muted-foreground">Loading leaderboard...</div>
           ) : rows.length > 0 ? (
             <div className="divide-y divide-border/50">

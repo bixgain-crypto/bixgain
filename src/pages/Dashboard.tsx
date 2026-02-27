@@ -1,11 +1,9 @@
 import { AppLayout } from "@/components/AppLayout";
 import { LevelBadge } from "@/components/LevelBadge";
 import { XpProgressBar } from "@/components/XpProgressBar";
+import { useAppData } from "@/context/AppDataContext";
 import { useAuth } from "@/hooks/useAuth";
-import { useProgression } from "@/hooks/useProgression";
-import { supabase } from "@/integrations/supabase/client";
 import { formatXp, getLevelProgress } from "@/lib/progression";
-import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { Activity, Coins, Sparkles, Trophy } from "lucide-react";
 
@@ -16,10 +14,19 @@ type ActivityItem = Record<string, unknown> & {
   created_at?: string;
 };
 
-function getActivityXp(activity: Record<string, unknown>): number {
+function getActivityAmount(activity: Record<string, unknown>): number {
   const raw = activity.xp_amount ?? activity.points_earned ?? activity.amount ?? 0;
   const value = Number(raw);
   return Number.isFinite(value) ? value : 0;
+}
+
+function getActivityUnit(activity: Record<string, unknown>): "xp" | "bix" {
+  const metadata = activity.metadata;
+  if (metadata && typeof metadata === "object" && !Array.isArray(metadata)) {
+    const unit = (metadata as Record<string, unknown>).unit;
+    if (typeof unit === "string" && unit.toLowerCase() === "bix") return "bix";
+  }
+  return "xp";
 }
 
 function activityTitle(activity: ActivityItem): string {
@@ -32,29 +39,27 @@ function activityTitle(activity: ActivityItem): string {
 
 export default function Dashboard() {
   const { session, user } = useAuth();
-  const { progressionQuery, weeklyRankQuery, seasonRankQuery } = useProgression(session?.user?.id);
+  const { activities, leaderboards, loading } = useAppData();
 
-  const { data: activities } = useQuery({
-    queryKey: ["dashboard-activities", session?.user?.id],
-    enabled: !!session?.user?.id,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("activities")
-        .select("*")
-        .eq("user_id", session!.user.id)
-        .order("created_at", { ascending: false })
-        .limit(8);
+  const visibleActivities = (activities ?? []).slice(0, 8) as ActivityItem[];
+  const weeklyRank = leaderboards.weekly?.current_user?.rank || null;
+  const seasonRank = leaderboards.season?.current_user?.rank || null;
 
-      if (error) throw error;
-      return (data ?? []) as ActivityItem[];
-    },
-  });
-
-  const totalXp = Number(user?.total_xp || progressionQuery.data?.totalXp || 0);
+  const totalXp = Number(user?.total_xp || 0);
   const bixBalance = Number(user?.bix_balance || 0);
-  const levelNumber = Number(user?.current_level || progressionQuery.data?.currentLevel || 1);
-  const levelName = String(user?.level_name || progressionQuery.data?.levelName || "Explorer");
+  const levelNumber = Number(user?.current_level || 1);
+  const levelName = String(user?.level_name || "Explorer");
   const progress = getLevelProgress(totalXp);
+
+  if (!session?.user?.id) {
+    return (
+      <AppLayout>
+        <div className="glass rounded-2xl p-8 text-center text-muted-foreground">
+          Sign in to view your dashboard.
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
@@ -87,15 +92,11 @@ export default function Dashboard() {
               </div>
               <div className="rounded-xl border border-border/60 bg-secondary/35 px-4 py-3">
                 <p className="text-xs text-muted-foreground uppercase tracking-wider">Season Rank</p>
-                <p className="mt-1 text-2xl font-bold">
-                  {seasonRankQuery.data?.current_user?.rank ? `#${seasonRankQuery.data.current_user.rank}` : "-"}
-                </p>
+                <p className="mt-1 text-2xl font-bold">{seasonRank ? `#${seasonRank}` : "-"}</p>
               </div>
               <div className="rounded-xl border border-border/60 bg-secondary/35 px-4 py-3">
                 <p className="text-xs text-muted-foreground uppercase tracking-wider">Weekly Rank</p>
-                <p className="mt-1 text-2xl font-bold">
-                  {weeklyRankQuery.data?.current_user?.rank ? `#${weeklyRankQuery.data.current_user.rank}` : "-"}
-                </p>
+                <p className="mt-1 text-2xl font-bold">{weeklyRank ? `#${weeklyRank}` : "-"}</p>
               </div>
             </div>
           </div>
@@ -112,12 +113,18 @@ export default function Dashboard() {
             Recent Activities
           </h2>
           <div className="mt-4 space-y-2">
-            {(activities ?? []).length > 0 ? (
-              (activities ?? []).map((activity, index) => (
+            {loading.activities ? (
+              <p className="text-sm text-muted-foreground">Loading activity feed...</p>
+            ) : visibleActivities.length > 0 ? (
+              visibleActivities.map((activity, index) => (
                 <div key={String(activity.id || `activity-${index}`)} className="rounded-xl border border-border/60 bg-secondary/35 px-4 py-3">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-sm font-medium capitalize">{activityTitle(activity)}</p>
-                    <p className="text-sm font-mono text-primary">{`+${formatXp(getActivityXp(activity))} XP`}</p>
+                    <p className="text-sm font-mono text-primary">
+                      {getActivityUnit(activity) === "bix"
+                        ? `+${getActivityAmount(activity).toLocaleString()} BIX`
+                        : `+${formatXp(getActivityAmount(activity))} XP`}
+                    </p>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
                     {activity.created_at ? new Date(activity.created_at).toLocaleString() : ""}
@@ -148,7 +155,7 @@ export default function Dashboard() {
               <Trophy className="h-3.5 w-3.5" />
               Progress Status
             </p>
-            <p className="mt-2 text-2xl font-bold">{`${levelName} • L${levelNumber}`}</p>
+            <p className="mt-2 text-2xl font-bold">{`${levelName} · L${levelNumber}`}</p>
             <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
               <Sparkles className="h-3 w-3 text-primary" />
               {formatXp(totalXp)} XP total

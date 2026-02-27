@@ -1,6 +1,6 @@
 import { AppLayout } from "@/components/AppLayout";
+import { useAppData } from "@/context/AppDataContext";
 import { useAuth } from "@/hooks/useAuth";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
 import {
@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   XCircle,
   Sparkles,
+  type LucideIcon,
 } from "lucide-react";
 import StakingTab from "@/components/StakingTab";
 import { toast } from "sonner";
@@ -25,35 +26,14 @@ import { useState } from "react";
 
 export default function WalletPage() {
   const { session, wallet } = useAuth();
-  const queryClient = useQueryClient();
+  const {
+    rewardTransactions: transactions,
+    claims,
+    loading,
+    refreshClaims,
+    refreshAdminStats,
+  } = useAppData();
   const [claimAmount, setClaimAmount] = useState("");
-
-  const { data: transactions } = useQuery({
-    queryKey: ["reward-transactions", session?.user?.id],
-    enabled: !!session?.user?.id,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("reward_transactions")
-        .select("*")
-        .eq("user_id", session!.user.id)
-        .order("created_at", { ascending: false })
-        .limit(20);
-      return data || [];
-    },
-  });
-
-  const { data: claims } = useQuery({
-    queryKey: ["all-claims", session?.user?.id],
-    enabled: !!session?.user?.id,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("claims")
-        .select("*")
-        .eq("user_id", session!.user.id)
-        .order("created_at", { ascending: false });
-      return data || [];
-    },
-  });
 
   const copyAddress = () => {
     if (wallet?.address) {
@@ -82,7 +62,7 @@ export default function WalletPage() {
     else {
       toast.success("Claim submitted for approval!");
       setClaimAmount("");
-      queryClient.invalidateQueries({ queryKey: ["all-claims"] });
+      await Promise.all([refreshClaims(), refreshAdminStats()]);
     }
   };
 
@@ -94,7 +74,7 @@ export default function WalletPage() {
     processing: { icon: Clock, color: "text-primary", bg: "bg-primary/10" },
   };
 
-  const ComingSoonCard = ({ icon: Icon, title, desc }: { icon: any; title: string; desc: string }) => (
+  const ComingSoonCard = ({ icon: Icon, title, desc }: { icon: LucideIcon; title: string; desc: string }) => (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
@@ -166,7 +146,9 @@ export default function WalletPage() {
           <TabsContent value="history">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass rounded-lg p-6">
               <h2 className="text-lg font-semibold mb-4">Transaction History</h2>
-              {transactions && transactions.length > 0 ? (
+              {loading.rewardTransactions ? (
+                <p className="text-sm text-muted-foreground text-center py-8">Loading transactions...</p>
+              ) : transactions && transactions.length > 0 ? (
                 <div className="space-y-2">
                   {transactions.map((tx) => {
                     const isEarning = ["earn", "bonus", "referral"].includes(tx.transaction_type);
@@ -223,8 +205,10 @@ export default function WalletPage() {
               </motion.div>
 
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass rounded-lg p-6">
-                <h2 className="text-lg font-semibold mb-4">Claim History</h2>
-                {claims && claims.length > 0 ? (
+              <h2 className="text-lg font-semibold mb-4">Claim History</h2>
+                {loading.claims ? (
+                  <p className="text-sm text-muted-foreground text-center py-8">Loading claims...</p>
+                ) : claims && claims.length > 0 ? (
                   <div className="space-y-2">
                     {claims.map((claim) => {
                       const config = statusConfig[claim.status as keyof typeof statusConfig];

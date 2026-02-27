@@ -2,12 +2,12 @@ import { AppLayout } from "@/components/AppLayout";
 import { XpProgressBar } from "@/components/XpProgressBar";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAppData } from "@/context/AppDataContext";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { awardXp } from "@/lib/progressionApi";
 import { formatXp } from "@/lib/progression";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { CheckCircle2, Clock, Target } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -133,54 +133,20 @@ function toMissionTask(task: TaskRow): MissionTask {
 
 export default function Tasks() {
   const { session, user } = useAuth();
-  const queryClient = useQueryClient();
+  const {
+    tasks,
+    activities,
+    referrals: referralRows,
+    loading,
+    refreshActivities,
+    refreshReferrals,
+    refreshUserProfile,
+    refreshLeaderboard,
+  } = useAppData();
   const [category, setCategory] = useState<MissionCategory>("daily");
   const [pendingMission, setPendingMission] = useState<string | null>(null);
 
-  const { data: tasks, isLoading: tasksLoading } = useQuery({
-    queryKey: ["mission-tasks"],
-    enabled: !!session?.user?.id,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("tasks")
-        .select("*")
-        .eq("is_active", true)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      return (data ?? []) as TaskRow[];
-    },
-  });
-
-  const { data: activities } = useQuery({
-    queryKey: ["mission-activities", session?.user?.id],
-    enabled: !!session?.user?.id,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("activities")
-        .select("id, task_id, description, metadata, created_at")
-        .eq("user_id", session!.user.id)
-        .order("created_at", { ascending: false })
-        .limit(500);
-
-      if (error) throw error;
-      return (data ?? []) as ActivityRow[];
-    },
-  });
-
-  const { data: referralRows } = useQuery({
-    queryKey: ["mission-referrals", session?.user?.id],
-    enabled: !!session?.user?.id,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("referrals")
-        .select("id, qualified")
-        .eq("referrer_id", session!.user.id);
-
-      if (error) throw error;
-      return (data ?? []) as ReferralRow[];
-    },
-  });
+  const tasksLoading = loading.tasks;
 
   const qualifiedReferrals = useMemo(
     () => (referralRows ?? []).filter((row) => row.qualified).length,
@@ -313,10 +279,14 @@ export default function Tasks() {
       }
 
       toast.success(`Mission completed: +${formatXp(mission.xpReward)} XP`);
-      queryClient.invalidateQueries({ queryKey: ["mission-activities"] });
-      queryClient.invalidateQueries({ queryKey: ["user-core"] });
-      queryClient.invalidateQueries({ queryKey: ["progression-summary"] });
-      queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
+      await Promise.all([
+        refreshActivities(),
+        refreshReferrals(),
+        refreshUserProfile(),
+        refreshLeaderboard("weekly"),
+        refreshLeaderboard("season"),
+        refreshLeaderboard("all_time"),
+      ]);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Mission failed";
       toast.error(message);
@@ -443,4 +413,3 @@ export default function Tasks() {
     </AppLayout>
   );
 }
-
