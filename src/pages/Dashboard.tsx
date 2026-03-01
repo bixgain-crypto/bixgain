@@ -32,7 +32,7 @@ function getActivityUnit(activity: Record<string, unknown>): "xp" | "bix" {
 function activityTitle(activity: ActivityItem): string {
   if (activity.description && typeof activity.description === "string") return activity.description;
   if (activity.activity_type && typeof activity.activity_type === "string") {
-    return activity.activity_type.replaceAll("_", " ");
+    return activity.activity_type.replace(/_/g, " ");
   }
   return "Activity";
 }

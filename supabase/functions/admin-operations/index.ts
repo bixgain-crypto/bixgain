@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
       return respond({ error: "Unauthorized" }, 401);
     }
 
-    const admin = createClient(supabaseUrl, serviceKey);
+    const admin: any = createClient(supabaseUrl, serviceKey);
     const callerIsAdmin = await userIsAdmin(admin, callerId);
     if (!callerIsAdmin) {
       return respond({ error: "Forbidden" }, 403);

@@ -1,5 +1,8 @@
 project_id = "ibcckhhwysqhgbkyodwl"
 
+[functions.admin-operations]
+verify_jwt = false
+
 [functions.task-operations]
 verify_jwt = false
 

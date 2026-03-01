@@ -522,7 +522,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
         const { data, error } = await supabase.rpc("get_admin_stats" as never);
         if (error) throw error;
 
-        const row = (Array.isArray(data) ? data[0] : data) as AdminStatsRpcRow | null | undefined;
+        const row = (Array.isArray(data) ? (data as any[])[0] : data) as AdminStatsRpcRow | null | undefined;
         setAdminStats((prev) => ({
           total_users: Number(row?.total_users ?? 0),
           active_users: prev?.active_users ?? null,
