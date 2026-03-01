@@ -15,7 +15,7 @@ import {
   listAdminUsers,
   listPlatformSettings,
 } from "@/lib/adminApi";
-import { type LeaderboardPeriod, type LeaderboardResponse } from "@/lib/leaderboardApi";
+import { fetchLeaderboard, type LeaderboardPeriod, type LeaderboardResponse } from "@/lib/leaderboardApi";
 import { generateReferralCode } from "@/lib/referrals";
 import { invokeStaking } from "@/lib/stakingApi";
 
@@ -37,15 +37,6 @@ type AdminStatsRpcRow = {
   active_stakes: number | null;
   pending_claims?: number | null;
 };
-type LeaderboardRpcRow = {
-  user_id: string;
-  username: string | null;
-  xp: number | null;
-  level: number | null;
-  level_name: string | null;
-  rank: number | null;
-};
-
 export type CoreUser = {
   id: string;
   username: string | null;
@@ -633,33 +624,47 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     await runExclusive(`refresh-leaderboard-${period}`, async () => {
       setLoadingFlag("leaderboard", true);
       try {
-        const { data, error } = await supabase.rpc("get_leaderboard" as never);
-        if (error) throw error;
-
-        const rows = (Array.isArray(data) ? data : []) as LeaderboardRpcRow[];
-        const top = rows.map((row, index) => {
-          const userId = String(row.user_id || "");
-          const xp = Number(row.xp ?? 0);
-          const level = Number(row.level ?? 1);
+        const response = await fetchLeaderboard(period, 100);
+        const top = (response.top ?? []).map((entry, index) => {
+          const userId = String(entry.user_id || "");
+          const xp = Number(entry.xp ?? 0);
+          const level = Number(entry.level ?? 1);
           return {
+            ...entry,
             user_id: userId,
-            username: row.username?.trim() || `User-${userId.slice(0, 6)}`,
-            avatar_url: null,
+            username: entry.username?.trim() || `User-${userId.slice(0, 6)}`,
+            avatar_url: entry.avatar_url ?? null,
             xp,
             level,
-            level_name: row.level_name?.trim() || `Level ${level}`,
-            rank: Number(row.rank ?? index + 1),
-            is_current_user: userId === sessionUserId,
+            level_name: entry.level_name?.trim() || `Level ${level}`,
+            rank: Number(entry.rank ?? index + 1),
+            is_current_user: entry.is_current_user || userId === sessionUserId,
           };
         });
-        const currentUser = top.find((entry) => entry.user_id === sessionUserId) || null;
+
+        const responseCurrent = response.current_user;
+        const currentUser = responseCurrent
+          ? {
+              ...responseCurrent,
+              user_id: String(responseCurrent.user_id || ""),
+              username:
+                responseCurrent.username?.trim() ||
+                `User-${String(responseCurrent.user_id || "").slice(0, 6)}`,
+              avatar_url: responseCurrent.avatar_url ?? null,
+              xp: Number(responseCurrent.xp ?? 0),
+              level: Number(responseCurrent.level ?? 1),
+              level_name:
+                responseCurrent.level_name?.trim() || `Level ${Number(responseCurrent.level ?? 1)}`,
+              rank: Number(responseCurrent.rank ?? 0),
+              is_current_user: true,
+            }
+          : top.find((entry) => entry.user_id === sessionUserId) || null;
 
         const payload: LeaderboardResponse = {
+          ...response,
           period,
-          generated_at: new Date().toISOString(),
-          season_label: "",
-          total_players: top.length,
           top,
+          total_players: Number(response.total_players ?? top.length),
           current_user: currentUser,
         };
 

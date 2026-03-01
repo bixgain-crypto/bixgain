@@ -199,8 +199,8 @@ export default function Tasks() {
     }
 
     const completedCount = completedByTaskId.get(mission.id) || 0;
-    const completed = completedCount > 0;
-    const progress = completed ? mission.target : 0;
+    const progress = Math.min(completedCount, mission.target);
+    const completed = progress >= mission.target;
     return {
       current: progress,
       percent: Math.max(0, Math.min(100, (progress / mission.target) * 100)),
@@ -209,7 +209,7 @@ export default function Tasks() {
   };
 
   const isMissionClaimed = (mission: MissionTask) => {
-    return (completedByTaskId.get(mission.id) || 0) > 0;
+    return getProgress(mission).completed;
   };
 
   const handleCompleteMission = async (mission: MissionTask) => {

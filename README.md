@@ -1,77 +1,94 @@
-# Welcome to your Lovable project
+# Bixgain Rewards Hub
 
-## Project info
+Bixgain Rewards Hub is a gamified growth platform where users complete missions, earn XP and BIX, compete on leaderboards, and level up through a transparent progression system.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+This product is designed around one principle: engagement should compound. Every action in the platform is meant to push users forward in rank, utility, and long-term retention.
 
-## How can I edit this code?
+## Product Overview
 
-There are several ways of editing your application.
+Bixgain combines game mechanics with a rewards economy:
 
-**Use Lovable**
+- Mission engine: Daily, weekly, referral, challenge, and seasonal missions.
+- Progression system: XP accumulation, level advancement, and level badges.
+- BIX utility: Spend BIX in the store and unlock additional benefits.
+- Referral growth loop: Invite users, track qualification, and earn milestone rewards.
+- Daily boost mechanic: Spin-to-earn style daily reward claim flow.
+- Competitive pressure: Weekly, seasonal, and all-time leaderboard views.
+- Admin operations: Manage users, missions, rewards, activity logs, and settings.
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+## Founder Positioning
 
-Changes made via Lovable will be committed automatically to this repo.
+Bixgain is built to be more than a rewards dashboard. It is an engagement operating system for communities that want measurable participation, recurring activity, and user progression that feels earned.
 
-**Use your preferred IDE**
+The long-term vision is a platform where mission design, reward design, and network effects work together as one compounding growth engine.
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+## Technology Stack
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+- Frontend: React + TypeScript + Vite
+- UI: Tailwind CSS + shadcn/ui + Framer Motion
+- Data/Auth: Supabase (Postgres, Auth, Realtime)
+- Backend logic: Supabase Edge Functions + SQL migrations
 
-Follow these steps:
+## Core Architecture
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+- `src/`: React application (pages, components, hooks, data context)
+- `supabase/migrations/`: Database schema and behavior migrations
+- `supabase/functions/`: Edge Functions for progression, referrals, staking, leaderboard, and admin operations
+- `docs/`: Deployment and auth notes
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+## Getting Started
 
-# Step 3: Install the necessary dependencies.
-npm i
+### 1. Install dependencies
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+```bash
+npm install
+```
+
+### 2. Configure environment variables
+
+Create a `.env` file in the project root:
+
+```env
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_anon_key
+VITE_PUBLIC_URL=http://localhost:5173
+VITE_USE_COOKIE_AUTH=false
+```
+
+### 3. Run locally
+
+```bash
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+### 4. Build for production
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+```bash
+npm run build
+npm run preview
+```
 
-**Use GitHub Codespaces**
+## Available Scripts
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+- `npm run dev`: Start local development server
+- `npm run build`: Create production build
+- `npm run preview`: Preview production build locally
+- `npm run lint`: Run ESLint
 
-## What technologies are used for this project?
+## Current Product Modules
 
-This project is built with:
+- Authentication and onboarding (`/auth`)
+- User dashboard (`/dashboard`)
+- Missions (`/missions`)
+- Daily boost (`/spin`)
+- Referrals (`/referrals`)
+- Leaderboard (`/leaderboard`)
+- Store (`/store`)
+- Boosts and staking (`/boosts`)
+- Admin console (`/admin`)
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## Notes
 
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-For Supabase Edge Functions deploy via GitHub Actions, see:
-
-- [docs/github-edge-deploy.md](docs/github-edge-deploy.md)
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+- Leaderboard, staking, task operations, and admin workflows depend on configured Supabase Edge Functions.
+- Database behavior is migration-driven; keep migrations in sync with deployed environments.
+- See `docs/github-edge-deploy.md` for Edge Function deployment guidance.
