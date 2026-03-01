@@ -97,8 +97,8 @@ export default function WalletPage() {
     <AppLayout>
       <div className="space-y-8">
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="text-3xl font-bold flex items-center gap-3">
-            <WalletIcon className="h-8 w-8 text-primary" />
+          <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2 sm:gap-3">
+            <WalletIcon className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
             BIX Wallet
           </h1>
         </motion.div>
@@ -111,7 +111,7 @@ export default function WalletPage() {
           className="glass rounded-xl p-8 glow-gold"
         >
           <p className="text-sm text-muted-foreground mb-2">Total Balance</p>
-          <p className="text-5xl font-bold font-mono text-gradient-gold">
+          <p className="text-3xl sm:text-5xl font-bold font-mono text-gradient-gold">
             {Number(wallet?.balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
           </p>
           <p className="text-lg text-muted-foreground mt-1">BIX</p>
@@ -133,14 +133,16 @@ export default function WalletPage() {
 
         {/* Tabs */}
         <Tabs defaultValue="history" className="w-full">
-          <TabsList className="bg-secondary/50 border border-border w-full justify-start">
-            <TabsTrigger value="history">History</TabsTrigger>
-            <TabsTrigger value="claim">Claim</TabsTrigger>
-            <TabsTrigger value="send">Send</TabsTrigger>
-            <TabsTrigger value="receive">Receive</TabsTrigger>
-            <TabsTrigger value="store">Store</TabsTrigger>
-            <TabsTrigger value="staking">Staking</TabsTrigger>
-          </TabsList>
+          <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
+            <TabsList className="bg-secondary/50 border border-border w-max sm:w-full justify-start">
+              <TabsTrigger value="history">History</TabsTrigger>
+              <TabsTrigger value="claim">Claim</TabsTrigger>
+              <TabsTrigger value="send">Send</TabsTrigger>
+              <TabsTrigger value="receive">Receive</TabsTrigger>
+              <TabsTrigger value="store">Store</TabsTrigger>
+              <TabsTrigger value="staking">Staking</TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* Transaction History */}
           <TabsContent value="history">

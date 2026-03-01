@@ -317,13 +317,15 @@ export default function Tasks() {
         </motion.div>
 
         <Tabs value={category} onValueChange={(value) => setCategory(value as MissionCategory)} className="w-full">
-          <TabsList className="w-full grid grid-cols-2 gap-2 md:grid-cols-5 bg-transparent p-0">
+          <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
+          <TabsList className="w-max sm:w-full grid grid-cols-5 gap-2 bg-transparent p-0">
             {CATEGORY_ORDER.map((value) => (
               <TabsTrigger key={value} value={value} className="glass rounded-xl py-2">
                 {CATEGORY_LABELS[value]}
               </TabsTrigger>
             ))}
           </TabsList>
+          </div>
         </Tabs>
 
         {tasksLoading ? (

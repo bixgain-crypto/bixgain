@@ -78,8 +78,8 @@ export default function Store() {
     <AppLayout>
       <div className="space-y-6">
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="text-3xl font-bold flex items-center gap-3">
-            <ShoppingBag className="h-8 w-8 text-primary" />
+          <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2 sm:gap-3">
+            <ShoppingBag className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
             Bix Store
           </h1>
         </motion.div>
@@ -90,7 +90,7 @@ export default function Store() {
           className="glass rounded-2xl p-6 sm:p-8"
         >
           <p className="text-xs uppercase tracking-wider text-muted-foreground">Bix Balance</p>
-          <p className="mt-2 text-4xl font-bold text-gradient-gold">{bixBalance.toLocaleString()} Bix</p>
+          <p className="mt-2 text-3xl sm:text-4xl font-bold text-gradient-gold">{bixBalance.toLocaleString()} Bix</p>
         </motion.section>
 
         <motion.section

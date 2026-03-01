@@ -49,7 +49,7 @@ export default function Index() {
           <div className="inline-block rounded-full border border-primary/40 bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary">
             Competitive Crypto Progression Platform
           </div>
-          <h1 className="text-5xl font-bold leading-tight md:text-7xl">
+          <h1 className="text-3xl font-bold leading-tight sm:text-5xl md:text-7xl">
             Climb Levels.
             <br />
             <span className="text-gradient-gold">Dominate Seasons.</span>
