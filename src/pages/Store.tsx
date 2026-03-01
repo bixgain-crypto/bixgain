@@ -4,8 +4,9 @@ import { useAppData } from "@/context/AppDataContext";
 import { useAuth } from "@/hooks/useAuth";
 import { spendBix } from "@/lib/progressionApi";
 import { motion } from "framer-motion";
-import { BadgePlus, ShoppingBag, Sparkles, Unlock, Zap } from "lucide-react";
+import { BadgePlus, ShoppingBag, Sparkles, Unlock, Wallet, Zap } from "lucide-react";
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
 
 type StoreItem = {
@@ -48,11 +49,21 @@ const STORE_ITEMS: StoreItem[] = [
 ];
 
 export default function Store() {
-  const { user } = useAuth();
-  const { refreshUserProfile, refreshWallet } = useAppData();
+  const { session, user } = useAuth();
+  const { refreshUserProfile, refreshWallet, refreshRewardTransactions } = useAppData();
   const [purchasing, setPurchasing] = useState<string | null>(null);
 
   const bixBalance = Number(user?.bix_balance || 0);
+
+  if (!session?.user?.id) {
+    return (
+      <AppLayout>
+        <div className="glass rounded-2xl p-8 text-center text-muted-foreground">
+          Sign in to access the Bix Store.
+        </div>
+      </AppLayout>
+    );
+  }
 
   const handlePurchase = async (item: StoreItem) => {
     if (purchasing) return;
@@ -65,7 +76,7 @@ export default function Store() {
     try {
       await spendBix(item.cost);
       toast.success(`${item.name} unlocked`);
-      await Promise.all([refreshUserProfile(), refreshWallet()]);
+      await Promise.all([refreshUserProfile(), refreshWallet(), refreshRewardTransactions()]);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Purchase failed";
       toast.error(message);
@@ -78,10 +89,18 @@ export default function Store() {
     <AppLayout>
       <div className="space-y-6">
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2 sm:gap-3">
-            <ShoppingBag className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
-            Bix Store
-          </h1>
+          <div className="flex items-center justify-between gap-3">
+            <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2 sm:gap-3">
+              <ShoppingBag className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
+              Bix Store
+            </h1>
+            <Link to="/wallet">
+              <Button variant="outline" className="border-primary/30 text-primary">
+                <Wallet className="h-4 w-4 mr-1.5" />
+                Wallet
+              </Button>
+            </Link>
+          </div>
         </motion.div>
 
         <motion.section
@@ -113,10 +132,10 @@ export default function Store() {
               </div>
               <Button
                 onClick={() => handlePurchase(item)}
-                disabled={purchasing === item.id}
+                disabled={purchasing === item.id || bixBalance < item.cost}
                 className="mt-5 bg-gradient-gold text-primary-foreground font-semibold"
               >
-                {purchasing === item.id ? "Processing..." : "Unlock"}
+                {purchasing === item.id ? "Processing..." : bixBalance < item.cost ? "Insufficient Balance" : "Unlock"}
               </Button>
             </div>
           ))}

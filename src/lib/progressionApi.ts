@@ -23,9 +23,61 @@ type RpcResult = {
   error?: string;
 } & JsonRecord;
 
-function normalizeError(prefix: string, error: unknown): Error {
-  const message = error instanceof Error ? error.message : String(error);
-  return new Error(`${prefix}: ${message}`);
+function parseJsonString(value: string): JsonRecord | null {
+  try {
+    const parsed = JSON.parse(value);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as JsonRecord;
+    }
+  } catch {
+    // Fall through and return null.
+  }
+  return null;
+}
+
+async function extractInvokeErrorMessage(functionName: string, error: unknown): Promise<string> {
+  const candidate = (error ?? {}) as {
+    message?: unknown;
+    details?: unknown;
+    context?: unknown;
+  };
+
+  if (typeof candidate.details === "string" && candidate.details.trim().length > 0) {
+    const detailsJson = parseJsonString(candidate.details);
+    if (detailsJson?.error && typeof detailsJson.error === "string") {
+      return `${functionName}: ${detailsJson.error}`;
+    }
+    if (detailsJson?.message && typeof detailsJson.message === "string") {
+      return `${functionName}: ${detailsJson.message}`;
+    }
+    return `${functionName}: ${candidate.details}`;
+  }
+
+  const response = candidate.context;
+  if (response && typeof response === "object" && "text" in response) {
+    const responseLike = response as Response;
+    try {
+      const bodyText = await responseLike.clone().text();
+      const bodyJson = parseJsonString(bodyText);
+      if (bodyJson?.error && typeof bodyJson.error === "string") {
+        return `${functionName}: ${bodyJson.error}`;
+      }
+      if (bodyJson?.message && typeof bodyJson.message === "string") {
+        return `${functionName}: ${bodyJson.message}`;
+      }
+      if (bodyText.trim().length > 0) {
+        return `${functionName}: ${bodyText}`;
+      }
+    } catch {
+      // Fall through to generic message.
+    }
+  }
+
+  if (typeof candidate.message === "string" && candidate.message.trim().length > 0) {
+    return `${functionName}: ${candidate.message}`;
+  }
+
+  return `${functionName}: request failed`;
 }
 
 function isMissingRpcError(error: unknown): boolean {
@@ -70,10 +122,10 @@ async function callRpcWithFallback(functionName: string, payloads: JsonRecord[])
   const invokePayload = payloads[0] || {};
   const { data, error } = await supabase.functions.invoke(functionName, { body: invokePayload });
   if (error) {
-    throw normalizeError(functionName, error);
+    throw new Error(await extractInvokeErrorMessage(functionName, error));
   }
   if (data?.error) {
-    throw new Error(String(data.error));
+    throw new Error(`${functionName}: ${String(data.error)}`);
   }
   return (typeof data === "object" && data !== null ? data : { success: true, value: data }) as RpcResult;
 }

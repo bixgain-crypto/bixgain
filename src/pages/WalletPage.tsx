@@ -9,7 +9,7 @@ import {
   ArrowUpRight,
   Copy,
   Send,
-  Store,
+  ShoppingBag,
   Clock,
   CheckCircle2,
   XCircle,
@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useState } from "react";
+import { Link } from "react-router-dom";
 
 export default function WalletPage() {
   const { session, wallet } = useAuth();
@@ -32,8 +33,19 @@ export default function WalletPage() {
     loading,
     refreshClaims,
     refreshAdminStats,
+    refreshRewardTransactions,
   } = useAppData();
   const [claimAmount, setClaimAmount] = useState("");
+
+  if (!session?.user?.id) {
+    return (
+      <AppLayout>
+        <div className="glass rounded-2xl p-8 text-center text-muted-foreground">
+          Sign in to access your wallet.
+        </div>
+      </AppLayout>
+    );
+  }
 
   const copyAddress = () => {
     if (wallet?.address) {
@@ -62,7 +74,7 @@ export default function WalletPage() {
     else {
       toast.success("Claim submitted for approval!");
       setClaimAmount("");
-      await Promise.all([refreshClaims(), refreshAdminStats()]);
+      await Promise.all([refreshClaims(), refreshRewardTransactions(), refreshAdminStats()]);
     }
   };
 
@@ -97,10 +109,18 @@ export default function WalletPage() {
     <AppLayout>
       <div className="space-y-8">
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2 sm:gap-3">
-            <WalletIcon className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
-            BIX Wallet
-          </h1>
+          <div className="flex items-center justify-between gap-3">
+            <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2 sm:gap-3">
+              <WalletIcon className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
+              BIX Wallet
+            </h1>
+            <Link to="/store">
+              <Button variant="outline" className="border-primary/30 text-primary">
+                <ShoppingBag className="h-4 w-4 mr-1.5" />
+                Store
+              </Button>
+            </Link>
+          </div>
         </motion.div>
 
         {/* Balance card */}
@@ -199,7 +219,7 @@ export default function WalletPage() {
                       className="bg-secondary border-border font-mono"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Available: {Number(wallet?.balance || 0).toLocaleString()} BIX · 5% tax applies
+                      Available: {Number(wallet?.balance || 0).toLocaleString()} BIX - 5% tax applies
                     </p>
                   </div>
                   <Button type="submit" className="w-full bg-gradient-gold font-semibold">Submit Claim</Button>
@@ -229,7 +249,7 @@ export default function WalletPage() {
                           <div className="text-right">
                             <p className="font-mono text-sm font-semibold">{Number(claim.net_amount).toLocaleString()} BIX</p>
                             <p className="text-xs text-muted-foreground">
-                              Gross: {Number(claim.amount).toLocaleString()} · Tax: {Number(claim.tax_amount).toLocaleString()}
+                              Gross: {Number(claim.amount).toLocaleString()} - Tax: {Number(claim.tax_amount).toLocaleString()}
                             </p>
                           </div>
                         </div>
@@ -253,9 +273,24 @@ export default function WalletPage() {
             <ComingSoonCard icon={ArrowDownLeft} title="Receive BIX" desc="Share your wallet address or QR code to receive BIX from anyone." />
           </TabsContent>
 
-          {/* Store - Coming Soon */}
+          {/* Store */}
           <TabsContent value="store">
-            <ComingSoonCard icon={Store} title="BIX Store" desc="Redeem your BIX for exclusive rewards, merchandise, gift cards and more." />
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="glass rounded-xl p-8 text-center space-y-4"
+            >
+              <ShoppingBag className="h-12 w-12 text-primary mx-auto" />
+              <h3 className="text-xl font-semibold">BIX Store</h3>
+              <p className="text-muted-foreground">
+                Spend BIX on unlocks, boosts, and season utilities.
+              </p>
+              <Link to="/store">
+                <Button className="bg-gradient-gold text-primary-foreground font-semibold">
+                  Open Store
+                </Button>
+              </Link>
+            </motion.div>
           </TabsContent>
 
           {/* Staking */}

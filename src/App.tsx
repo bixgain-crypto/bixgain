@@ -11,6 +11,7 @@ import Tasks from "./pages/Tasks";
 import Profile from "./pages/Profile";
 import Leaderboard from "./pages/Leaderboard";
 import Store from "./pages/Store";
+import WalletPage from "./pages/WalletPage";
 import Boosts from "./pages/Boosts";
 import Admin from "./pages/Admin";
 import SpinToEarn from "./pages/SpinToEarn";
@@ -38,7 +39,7 @@ const App = () => (
             <Route path="/boosts" element={<Boosts />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/store" element={<Store />} />
-            <Route path="/wallet" element={<Navigate to="/store" replace />} />
+            <Route path="/wallet" element={<WalletPage />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

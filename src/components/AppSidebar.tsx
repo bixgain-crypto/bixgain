@@ -7,6 +7,7 @@ import {
   Zap,
   Trophy,
   ShoppingBag,
+  Wallet,
   Shield,
   LogOut,
   Menu,
@@ -26,6 +27,7 @@ const navItems = [
   { href: "/spin", label: "Daily Boost", icon: Orbit },
   { href: "/boosts", label: "Boosts", icon: Zap },
   { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
+  { href: "/wallet", label: "Wallet", icon: Wallet },
   { href: "/store", label: "Bix Store", icon: ShoppingBag },
 ];
 

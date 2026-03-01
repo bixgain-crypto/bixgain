@@ -12,7 +12,7 @@ const navItems = [
   { href: "/missions", label: "Missions", icon: Target },
   { href: "/spin", label: "Boost", icon: Orbit },
   { href: "/leaderboard", label: "Rank", icon: Trophy },
-  { href: "/store", label: "Store", icon: Wallet },
+  { href: "/wallet", label: "Wallet", icon: Wallet },
 ];
 
 export function BottomNav() {
