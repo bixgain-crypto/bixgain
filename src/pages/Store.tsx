@@ -49,7 +49,7 @@ const STORE_ITEMS: StoreItem[] = [
 ];
 
 export default function Store() {
-  const { session, user } = useAuth();
+  const { session, user, signOut } = useAuth();
   const { refreshUserProfile, refreshWallet, refreshRewardTransactions } = useAppData();
   const [purchasing, setPurchasing] = useState<string | null>(null);
 
@@ -79,6 +79,17 @@ export default function Store() {
       await Promise.all([refreshUserProfile(), refreshWallet(), refreshRewardTransactions()]);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Purchase failed";
+      const authFailure =
+        message.toLowerCase().includes("invalid jwt") ||
+        message.toLowerCase().includes("unauthorized") ||
+        message.toLowerCase().includes("session expired");
+
+      if (authFailure) {
+        toast.error("Session expired. Please sign in again.");
+        await signOut();
+        return;
+      }
+
       toast.error(message);
     } finally {
       setPurchasing(null);
