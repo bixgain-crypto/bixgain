@@ -56,7 +56,7 @@ async function extractInvokeMessage(error: unknown): Promise<string> {
         return text;
       }
     } catch {
-      // Ignore response parsing errors.
+      // Ignore response parsing errors .
     }
   }
 

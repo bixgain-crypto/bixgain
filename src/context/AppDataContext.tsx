@@ -669,6 +669,27 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
         };
 
         setLeaderboards((prev) => ({ ...prev, [period]: payload }));
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : "Leaderboard unavailable";
+        const authFailure =
+          message.toLowerCase().includes("invalid jwt") || message.toLowerCase().includes("unauthorized");
+
+        if (authFailure) {
+          setLeaderboards((prev) => ({
+            ...prev,
+            [period]: {
+              period,
+              generated_at: new Date().toISOString(),
+              season_label: "",
+              total_players: 0,
+              top: [],
+              current_user: null,
+            },
+          }));
+          return;
+        }
+
+        console.error(`[leaderboard:${period}] ${message}`);
       } finally {
         setLoadingFlag("leaderboard", false);
       }
@@ -769,14 +790,20 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    void refreshAll();
+    void refreshAll().catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : "Failed to refresh app data";
+      console.error(message);
+    });
   }, [clearAdminData, clearUserData, refreshAll, sessionUserId]);
 
   useEffect(() => {
     if (!sessionUserId) return;
 
     const interval = window.setInterval(() => {
-      void refreshAll();
+      void refreshAll().catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : "Failed to refresh app data";
+        console.error(message);
+      });
     }, 60_000);
 
     return () => {
@@ -1034,3 +1061,4 @@ export function useAppData() {
   }
   return context;
 }
+

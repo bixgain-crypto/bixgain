@@ -118,7 +118,7 @@ async function callRpcWithFallback(functionName: string, payloads: JsonRecord[])
     lastError = new Error(error.message);
   }
 
-  // Fallback to Edge Function by the same name when RPC is not exposed directly.
+  //  Fallback to Edge Function by the same name when RPC is not exposed directly.
   const invokePayload = payloads[0] || {};
   const { data, error } = await supabase.functions.invoke(functionName, { body: invokePayload });
   if (error) {
