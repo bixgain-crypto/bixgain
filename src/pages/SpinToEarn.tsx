@@ -81,7 +81,7 @@ export default function SpinToEarn() {
     <AppLayout>
       <div className="space-y-8">
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="text-3xl font-bold flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-3">
             <Orbit className="h-8 w-8 text-primary" />
             Daily Boost
           </h1>
@@ -104,7 +104,7 @@ export default function SpinToEarn() {
               <div className="w-0 h-0 border-l-[14px] border-r-[14px] border-t-[22px] border-l-transparent border-r-transparent border-t-primary drop-shadow-lg" />
             </div>
 
-            <div className="relative w-80 h-80">
+            <div className="relative w-64 h-64 sm:w-80 sm:h-80">
               <svg
                 viewBox="0 0 320 320"
                 className="w-full h-full drop-shadow-2xl"

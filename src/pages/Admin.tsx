@@ -295,7 +295,8 @@ export default function Admin() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6">
+          <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
+          <TabsList className="w-max sm:w-full grid grid-cols-6 sm:grid-cols-6">
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="missions">Missions</TabsTrigger>
             <TabsTrigger value="rewards">Rewards</TabsTrigger>
@@ -303,6 +304,7 @@ export default function Admin() {
             <TabsTrigger value="data">Settings</TabsTrigger>
             <TabsTrigger value="audit">Audit</TabsTrigger>
           </TabsList>
+          </div>
 
           <TabsContent value="users" className="space-y-3">
             <div className="flex gap-2">
