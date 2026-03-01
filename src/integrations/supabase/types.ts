@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      achievements: {
+        Row: {
+          condition_type: string | null
+          condition_value: number | null
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string | null
+          xp_reward: number | null
+        }
+        Insert: {
+          condition_type?: string | null
+          condition_value?: number | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string | null
+          xp_reward?: number | null
+        }
+        Update: {
+          condition_type?: string | null
+          condition_value?: number | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string | null
+          xp_reward?: number | null
+        }
+        Relationships: []
+      }
       activities: {
         Row: {
           activity_type: Database["public"]["Enums"]["activity_type"]
@@ -26,7 +59,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
-          activity_type: Database["public"]["Enums"]["activity_type"]
+          activity_type?: Database["public"]["Enums"]["activity_type"]
           created_at?: string
           description?: string | null
           id?: string
@@ -91,6 +124,41 @@ export type Database = {
         }
         Relationships: []
       }
+      admin_logs: {
+        Row: {
+          action: string
+          admin_id: string | null
+          created_at: string | null
+          details: Json | null
+          id: string
+          target_user: string | null
+        }
+        Insert: {
+          action: string
+          admin_id?: string | null
+          created_at?: string | null
+          details?: Json | null
+          id?: string
+          target_user?: string | null
+        }
+        Update: {
+          action?: string
+          admin_id?: string | null
+          created_at?: string | null
+          details?: Json | null
+          id?: string
+          target_user?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_logs_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       admin_permissions: {
         Row: {
           created_at: string
@@ -138,6 +206,51 @@ export type Database = {
           description?: string | null
           id?: string
           name?: string
+        }
+        Relationships: []
+      }
+      admin_settings: {
+        Row: {
+          created_at: string | null
+          daily_reward_bix: number | null
+          id: number
+          max_daily_claims: number | null
+          max_referrals_per_day: number | null
+          referral_reward_bix: number | null
+          spin_reward_max: number | null
+          spin_reward_min: number | null
+          updated_at: string | null
+          username_change_days: number | null
+          withdraw_fee_percent: number | null
+          withdraw_min_bix: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          daily_reward_bix?: number | null
+          id?: number
+          max_daily_claims?: number | null
+          max_referrals_per_day?: number | null
+          referral_reward_bix?: number | null
+          spin_reward_max?: number | null
+          spin_reward_min?: number | null
+          updated_at?: string | null
+          username_change_days?: number | null
+          withdraw_fee_percent?: number | null
+          withdraw_min_bix?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          daily_reward_bix?: number | null
+          id?: number
+          max_daily_claims?: number | null
+          max_referrals_per_day?: number | null
+          referral_reward_bix?: number | null
+          spin_reward_max?: number | null
+          spin_reward_min?: number | null
+          updated_at?: string | null
+          username_change_days?: number | null
+          withdraw_fee_percent?: number | null
+          withdraw_min_bix?: number | null
         }
         Relationships: []
       }
@@ -235,6 +348,41 @@ export type Database = {
           },
         ]
       }
+      daily_rewards: {
+        Row: {
+          bix_earned: number | null
+          created_at: string | null
+          id: string
+          reward_date: string | null
+          user_id: string | null
+          xp_earned: number | null
+        }
+        Insert: {
+          bix_earned?: number | null
+          created_at?: string | null
+          id?: string
+          reward_date?: string | null
+          user_id?: string | null
+          xp_earned?: number | null
+        }
+        Update: {
+          bix_earned?: number | null
+          created_at?: string | null
+          id?: string
+          reward_date?: string | null
+          user_id?: string | null
+          xp_earned?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_rewards_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fraud_flags: {
         Row: {
           created_at: string
@@ -277,6 +425,42 @@ export type Database = {
           severity?: string
           status?: Database["public"]["Enums"]["fraud_flag_status"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      missions: {
+        Row: {
+          cooldown_hours: number | null
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          level_required: number | null
+          mission_type: string | null
+          name: string | null
+          xp_reward: number | null
+        }
+        Insert: {
+          cooldown_hours?: number | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          level_required?: number | null
+          mission_type?: string | null
+          name?: string | null
+          xp_reward?: number | null
+        }
+        Update: {
+          cooldown_hours?: number | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          level_required?: number | null
+          mission_type?: string | null
+          name?: string | null
+          xp_reward?: number | null
         }
         Relationships: []
       }
@@ -555,6 +739,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      seasons: {
+        Row: {
+          created_at: string | null
+          end_date: string | null
+          id: string
+          is_active: boolean | null
+          name: string | null
+          start_date: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          end_date?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string | null
+          start_date?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          end_date?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string | null
+          start_date?: string | null
+        }
+        Relationships: []
       }
       spin_records: {
         Row: {
@@ -884,6 +1095,183 @@ export type Database = {
           },
         ]
       }
+      user_achievements: {
+        Row: {
+          achievement_id: string | null
+          id: string
+          unlocked_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          achievement_id?: string | null
+          id?: string
+          unlocked_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          achievement_id?: string | null
+          id?: string
+          unlocked_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_achievements_achievement_id_fkey"
+            columns: ["achievement_id"]
+            isOneToOne: false
+            referencedRelation: "achievements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_achievements_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_missions: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          id: string
+          mission_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          id?: string
+          mission_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          id?: string
+          mission_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_missions_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "missions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_missions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      users: {
+        Row: {
+          admin_role: string
+          avatar_url: string | null
+          badge_color: string | null
+          badge_icon: string | null
+          badge_title: string | null
+          bio: string | null
+          bix: number | null
+          bix_balance: number
+          boost_expires_at: string | null
+          converted_xp: number
+          created_at: string | null
+          current_level: number
+          display_name: string | null
+          id: string
+          is_admin: boolean
+          join_date: string | null
+          last_active_date: string | null
+          last_username_change: string | null
+          level: number
+          level_name: string
+          longest_streak: number | null
+          season_xp: number | null
+          streak_count: number | null
+          total_bix: number
+          total_bix_earned: number | null
+          total_xp: number
+          total_xp_earned: number | null
+          username: string
+          weekly_xp: number | null
+          xp: number
+          xp_multiplier: number | null
+        }
+        Insert: {
+          admin_role?: string
+          avatar_url?: string | null
+          badge_color?: string | null
+          badge_icon?: string | null
+          badge_title?: string | null
+          bio?: string | null
+          bix?: number | null
+          bix_balance?: number
+          boost_expires_at?: string | null
+          converted_xp?: number
+          created_at?: string | null
+          current_level?: number
+          display_name?: string | null
+          id: string
+          is_admin?: boolean
+          join_date?: string | null
+          last_active_date?: string | null
+          last_username_change?: string | null
+          level?: number
+          level_name?: string
+          longest_streak?: number | null
+          season_xp?: number | null
+          streak_count?: number | null
+          total_bix?: number
+          total_bix_earned?: number | null
+          total_xp?: number
+          total_xp_earned?: number | null
+          username?: string
+          weekly_xp?: number | null
+          xp?: number
+          xp_multiplier?: number | null
+        }
+        Update: {
+          admin_role?: string
+          avatar_url?: string | null
+          badge_color?: string | null
+          badge_icon?: string | null
+          badge_title?: string | null
+          bio?: string | null
+          bix?: number | null
+          bix_balance?: number
+          boost_expires_at?: string | null
+          converted_xp?: number
+          created_at?: string | null
+          current_level?: number
+          display_name?: string | null
+          id?: string
+          is_admin?: boolean
+          join_date?: string | null
+          last_active_date?: string | null
+          last_username_change?: string | null
+          level?: number
+          level_name?: string
+          longest_streak?: number | null
+          season_xp?: number | null
+          streak_count?: number | null
+          total_bix?: number
+          total_bix_earned?: number | null
+          total_xp?: number
+          total_xp_earned?: number | null
+          username?: string
+          weekly_xp?: number | null
+          xp?: number
+          xp_multiplier?: number | null
+        }
+        Relationships: []
+      }
       wallets: {
         Row: {
           address: string | null
@@ -923,8 +1311,74 @@ export type Database = {
         }
         Relationships: []
       }
+      withdrawals: {
+        Row: {
+          amount: number | null
+          created_at: string | null
+          id: string
+          network: string | null
+          status: string | null
+          user_id: string | null
+          wallet_address: string | null
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string | null
+          id?: string
+          network?: string | null
+          status?: string | null
+          user_id?: string | null
+          wallet_address?: string | null
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string | null
+          id?: string
+          network?: string | null
+          status?: string | null
+          user_id?: string | null
+          wallet_address?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "withdrawals_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
+      leaderboard_season: {
+        Row: {
+          display_name: string | null
+          rank: number | null
+          season_xp: number | null
+          username: string | null
+        }
+        Relationships: []
+      }
+      leaderboard_total: {
+        Row: {
+          current_level: number | null
+          display_name: string | null
+          rank: number | null
+          total_xp: number | null
+          username: string | null
+        }
+        Relationships: []
+      }
+      leaderboard_weekly: {
+        Row: {
+          display_name: string | null
+          rank: number | null
+          username: string | null
+          weekly_xp: number | null
+        }
+        Relationships: []
+      }
       v_admin_claims_overview: {
         Row: {
           amount: number | null
@@ -969,11 +1423,139 @@ export type Database = {
       }
     }
     Functions: {
+      activate_boost: {
+        Args: { hours: number; multiplier: number }
+        Returns: string
+      }
+      admin_grant_bix: {
+        Args: { p_bix: number; p_user: string }
+        Returns: undefined
+      }
+      admin_grant_reward_bulk: {
+        Args: { p_items: Json; p_reason?: string }
+        Returns: Json
+      }
+      admin_grant_reward_single: {
+        Args: {
+          p_bix?: number
+          p_description?: string
+          p_reason?: string
+          p_target_user_id: string
+          p_xp?: number
+        }
+        Returns: Json
+      }
+      admin_grant_xp: {
+        Args: { p_user: string; p_xp: number }
+        Returns: undefined
+      }
+      admin_list_users: {
+        Args: never
+        Returns: {
+          admin_role: string
+          avatar_url: string | null
+          badge_color: string | null
+          badge_icon: string | null
+          badge_title: string | null
+          bio: string | null
+          bix: number | null
+          bix_balance: number
+          boost_expires_at: string | null
+          converted_xp: number
+          created_at: string | null
+          current_level: number
+          display_name: string | null
+          id: string
+          is_admin: boolean
+          join_date: string | null
+          last_active_date: string | null
+          last_username_change: string | null
+          level: number
+          level_name: string
+          longest_streak: number | null
+          season_xp: number | null
+          streak_count: number | null
+          total_bix: number
+          total_bix_earned: number | null
+          total_xp: number
+          total_xp_earned: number | null
+          username: string
+          weekly_xp: number | null
+          xp: number
+          xp_multiplier: number | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "users"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      admin_update_setting: {
+        Args: { p_key: string; p_value: string }
+        Returns: undefined
+      }
+      approve_withdrawal: { Args: { wid: string }; Returns: string }
+      award_xp: {
+        Args: { user_id: string; xp_amount: number }
+        Returns: undefined
+      }
+      change_username: { Args: { new_username: string }; Returns: string }
+      check_achievements: { Args: never; Returns: string }
+      claim_daily_reward:
+        | { Args: never; Returns: Json }
+        | { Args: { p_user_id: string }; Returns: Json }
+      complete_mission: { Args: { mission_uuid: string }; Returns: string }
+      convert_xp_to_bix: { Args: { user_id: string }; Returns: undefined }
+      expire_boosts: { Args: never; Returns: string }
+      get_active_season: { Args: never; Returns: string }
+      get_admin_stats: {
+        Args: never
+        Returns: {
+          active_stakes: number
+          pending_claims: number
+          rewards_distributed: number
+          total_users: number
+          tvl_locked: number
+        }[]
+      }
+      get_leaderboard: {
+        Args: never
+        Returns: {
+          level: number
+          level_name: string
+          rank: number
+          user_id: string
+          username: string
+          xp: number
+        }[]
+      }
       has_admin_permission: {
         Args: { _permission: string; _user_id: string }
         Returns: boolean
       }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
+      progression_ensure_user_row: {
+        Args: { p_user_id: string }
+        Returns: undefined
+      }
+      reject_withdrawal: { Args: { wid: string }; Returns: string }
+      request_withdrawal: {
+        Args: { net: string; wallet: string; withdraw_amount: number }
+        Returns: string
+      }
+      reset_season: { Args: never; Returns: string }
+      reset_weekly: { Args: never; Returns: string }
+      sanitize_platform_username: {
+        Args: { p_input: string; p_user_id: string }
+        Returns: string
+      }
+      update_badge: { Args: never; Returns: undefined }
+      update_profile: {
+        Args: { new_bio: string; new_display: string }
+        Returns: string
+      }
+      update_streak: { Args: never; Returns: string }
     }
     Enums: {
       activity_type:

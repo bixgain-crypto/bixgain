@@ -9,6 +9,7 @@ on:
         default: "task-operations"
         type: choice
         options:
+          - admin-operations
           - task-operations
           - leaderboard
           - claim_daily_reward
