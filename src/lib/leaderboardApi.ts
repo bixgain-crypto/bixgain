@@ -22,6 +22,8 @@ export type LeaderboardResponse = {
   current_user: LeaderboardEntry | null;
 };
 
+let refreshSessionInFlight: Promise<string | null> | null = null;
+
 function parseJsonObject(value: string): Record<string, unknown> | null {
   try {
     const parsed = JSON.parse(value);
@@ -79,6 +81,19 @@ async function invokeLeaderboard(period: LeaderboardPeriod, limit: number, acces
   });
 }
 
+async function refreshAccessTokenOnce(): Promise<string | null> {
+  if (!refreshSessionInFlight) {
+    refreshSessionInFlight = (async () => {
+      const { data, error } = await supabase.auth.refreshSession();
+      if (error || !data.session?.access_token) return null;
+      return data.session.access_token;
+    })().finally(() => {
+      refreshSessionInFlight = null;
+    });
+  }
+  return refreshSessionInFlight;
+}
+
 export async function fetchLeaderboard(period: LeaderboardPeriod, limit = 25): Promise<LeaderboardResponse> {
   const { data, error } = await invokeLeaderboard(period, limit);
 
@@ -94,12 +109,12 @@ export async function fetchLeaderboard(period: LeaderboardPeriod, limit = 25): P
     throw new Error(firstMessage);
   }
 
-  const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-  if (refreshError || !refreshData.session?.access_token) {
+  const freshAccessToken = await refreshAccessTokenOnce();
+  if (!freshAccessToken) {
     throw new Error(firstMessage);
   }
 
-  const retry = await invokeLeaderboard(period, limit, refreshData.session.access_token);
+  const retry = await invokeLeaderboard(period, limit, freshAccessToken);
   if (retry.error) {
     throw new Error(await extractInvokeMessage(retry.error));
   }

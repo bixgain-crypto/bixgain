@@ -121,6 +121,7 @@ type AppDataContextValue = {
 };
 
 const AppDataContext = createContext<AppDataContextValue | undefined>(undefined);
+const REFRESH_ALL_THROTTLE_MS = 5000;
 
 const DEFAULT_LOADING: LoadingState = {
   session: true,
@@ -210,8 +211,15 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState<LoadingState>(DEFAULT_LOADING);
 
   const inFlightRef = useRef<Record<string, Promise<unknown>>>({});
+  const lastRefreshAllRef = useRef(0);
   const sessionUserId = session?.user?.id || null;
   const isAdmin = !!user?.is_admin;
+
+  const sameSession = useCallback((a: Session | null, b: Session | null) => {
+    if (a === b) return true;
+    if (!a || !b) return false;
+    return a.user?.id === b.user?.id && a.access_token === b.access_token && a.expires_at === b.expires_at;
+  }, []);
 
   const setLoadingFlag = useCallback((key: keyof LoadingState, value: boolean) => {
     setLoading((prev) => (prev[key] === value ? prev : { ...prev, [key]: value }));
@@ -703,35 +711,43 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const latestUser = await refreshUserProfile();
+    await runExclusive("refresh-all", async () => {
+      const now = Date.now();
+      const sinceLast = now - lastRefreshAllRef.current;
+      if (sinceLast >= 0 && sinceLast < REFRESH_ALL_THROTTLE_MS) {
+        return;
+      }
+      lastRefreshAllRef.current = now;
 
-    await Promise.all([
-      refreshWallet(),
-      refreshStakingPlans(),
-      refreshStakes(),
-      refreshActivities(),
-      refreshReferrals(),
-      refreshReferralCode(),
-      refreshTasks(),
-      refreshClaims(),
+      const latestUser = await refreshUserProfile();
+
+      await Promise.all([
+        refreshWallet(),
+        refreshStakingPlans(),
+        refreshStakes(),
+        refreshActivities(),
+        refreshReferrals(),
+        refreshReferralCode(),
+        refreshTasks(),
+        refreshClaims(),
       refreshRewardTransactions(),
       refreshLeaderboard("weekly"),
       refreshLeaderboard("season"),
-      refreshLeaderboard("all_time"),
     ]);
 
-    if (latestUser?.is_admin) {
-      await Promise.all([
-        refreshAdminStats(),
-        refreshAdminUsers(),
-        refreshAdminTasks(),
-        refreshAdminActivities(),
-        refreshAdminSettings(),
-        refreshAdminAuditLogs(),
-      ]);
-    } else {
-      clearAdminData();
-    }
+      if (latestUser?.is_admin) {
+        await Promise.all([
+          refreshAdminStats(),
+          refreshAdminUsers(),
+          refreshAdminTasks(),
+          refreshAdminActivities(),
+          refreshAdminSettings(),
+          refreshAdminAuditLogs(),
+        ]);
+      } else {
+        clearAdminData();
+      }
+    });
   }, [
     clearAdminData,
     clearUserData,
@@ -752,6 +768,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     refreshTasks,
     refreshUserProfile,
     refreshWallet,
+    runExclusive,
     sessionUserId,
   ]);
 
@@ -768,12 +785,12 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
 
     supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return;
-      setSession(data.session);
+      setSession((prev) => (sameSession(prev, data.session) ? prev : data.session));
       setLoadingFlag("session", false);
     });
 
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
+      setSession((prev) => (sameSession(prev, nextSession) ? prev : nextSession));
       setLoadingFlag("session", false);
     });
 
@@ -781,7 +798,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       mounted = false;
       authListener.subscription.unsubscribe();
     };
-  }, [setLoadingFlag]);
+  }, [sameSession, setLoadingFlag]);
 
   useEffect(() => {
     if (!sessionUserId) {
@@ -844,7 +861,6 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       void refreshActivities();
       void refreshLeaderboard("weekly");
       void refreshLeaderboard("season");
-      void refreshLeaderboard("all_time");
       if (isAdmin) {
         void refreshAdminActivities();
         void refreshAdminStats();
