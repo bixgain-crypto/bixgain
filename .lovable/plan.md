@@ -1,73 +1,73 @@
 
 
-# Fix: Referral Rewards Not Being Granted
+# Database and Admin Review: Root Causes and Fixes
 
-## Root Cause Analysis
+## Critical Issues Found
 
-After analyzing the database and code, here are the issues preventing referral rewards:
+### 1. `prevent_admin_edit` Trigger Blocks Admin Operations
+The `users` table has an active trigger (`admin_edit_block`) that runs the `prevent_admin_edit()` function. This function raises an exception whenever `is_admin` is changed -- even when using the service_role key. This means:
+- "Make Admin" and "Revoke Admin" buttons in the Admin panel always fail
+- The `updateUser` action in the `admin-operations` edge function is blocked
 
-### Issue 1: No referral records exist
-The `referrals` table is completely empty. No user has signed up through a `?ref=` link yet in the current system, so there are no referrals to reward.
+**Fix:** Drop the trigger entirely. Admin role changes are already protected by the edge function (which verifies the caller is an admin) and RLS policies.
 
-### Issue 2: Task attempts never reach "approved" status
-All 5 `task_attempts` records are stuck in "started" status. The `Tasks.tsx` frontend completes tasks by directly inserting into the `activities` table (bypassing the edge function), so `task_attempts.status` is never updated to "approved". Since `checkReferralQualification` requires at least one approved attempt, referrals can never qualify.
+### 2. `prevent_balance_edit` Trigger Blocks Reward Grants and Staking
+The `users` table has an active trigger (`balance_block`) that runs `prevent_balance_edit()`. It raises an exception whenever `bix_balance` or `total_bix` is changed -- even via service_role. This blocks:
+- "Grant Rewards" (BIX) in the Admin panel
+- Staking unstake/claim operations that update user balances
+- Any edge function that adjusts BIX balances
 
-### Issue 3: Double/triple reward crediting
-The `awardReward` edge function both:
-- Inserts into `activities` (which fires the `credit_wallet_on_activity` trigger, auto-crediting the wallet)
-- Manually updates wallet balance
+**Fix:** Drop this trigger. Balance changes are protected by RLS (users can't directly update their own balance via the client) and all legitimate balance changes go through edge functions with service_role.
 
-This means every edge-function reward would be credited TWICE to the wallet. Meanwhile, `Tasks.tsx` also inserts into `activities` directly (a third path), creating further confusion.
+### 3. No SELECT Policy for Regular Users on `users` Table
+The `users` table only has one SELECT policy: `Admins can select all users` (requires `is_admin(auth.uid())`). There is **no** policy allowing regular users to read their own row. This means:
+- Non-admin users cannot load their profile, XP, balance, or level
+- The `refreshUserProfile()` call returns null for regular users
+- The Dashboard, Profile, and Wallet pages are essentially broken for non-admin users
 
-### Issue 4: Tasks.tsx never triggers referral qualification
-The frontend task flow never calls `checkReferralQualification`. Only the edge function paths do.
+**Fix:** Add a SELECT policy: `Users can view own row` with `USING (id = auth.uid())`.
 
-## Fix Plan
+### 4. `admin-operations` Missing from `config.toml`
+The `admin-operations` edge function is not listed in `supabase/config.toml`, so it defaults to `verify_jwt = true` (the deprecated approach). The function already validates the JWT manually in code, so this should be set to `verify_jwt = false`.
 
-### Step 1: Fix `awardReward` -- Remove manual wallet update (double-credit bug)
+**Fix:** Add `[functions.admin-operations]` with `verify_jwt = false` to config.toml.
 
-Since the `credit_wallet_on_activity` trigger already handles wallet balance updates when an `activities` row is inserted, the manual wallet update in `awardReward` must be removed. Otherwise every reward is counted twice.
+### 5. Build Errors in `admin-operations/index.ts` (TypeScript)
+The edge function has ~25+ TypeScript errors because `createClient(url, key)` without a generic type parameter produces a strictly-typed client where table types resolve to `never`. All `.from()`, `.insert()`, `.update()`, `.upsert()` calls fail type checking.
 
-### Step 2: Fix `Tasks.tsx` -- Route task completions through edge function
+**Fix:** Cast the client as `any` or use a type assertion: `const admin = createClient(supabaseUrl, serviceKey) as any;`. This is standard practice for untyped edge functions.
 
-Update the task completion flow in `Tasks.tsx` so that when a task is verified (link visit, video watch, or social follow proof), it:
-- Calls the edge function to update `task_attempts.status` to "approved"
-- The edge function then calls `checkReferralQualification` automatically
-- Remove direct `activities` inserts from the frontend
+---
 
-### Step 3: Fix task completion paths in edge function
+## Implementation Plan
 
-For `verifyLinkVisit` and `verifyVideoWatch`: these already work correctly (mark attempt approved, award, check referral). No changes needed.
-
-For social follow tasks: after admin approval via `approveAttempt`, it already calls `checkReferralQualification`. No changes needed.
-
-### Step 4: Clean up stale "started" task_attempts
-
-The 5 existing "started" attempts should remain as-is (they represent incomplete tasks).
-
-## Technical Details
-
-### Files to modify
-
-| File | Change |
-|------|--------|
-| `supabase/functions/task-operations/index.ts` | Remove manual wallet update from `awardReward` (lines 640-655) to prevent double-crediting |
-| `src/pages/Tasks.tsx` | Replace direct `activities` inserts with edge function calls for `verify_link_visit`, `verify_video_watch`, and `submit_proof`; remove client-side reward logic |
-
-### What will work after the fix
-
-1. User A shares referral link
-2. User B signs up with `?ref=` code -- `link_referral` edge function creates a referral record (qualified=false, reward_granted=false)
-3. User B completes a task -- edge function marks `task_attempts.status = approved`
-4. Edge function calls `checkReferralQualification` -- finds User B's referral, sees they have an approved attempt, passes fraud checks, marks qualified=true, reward_granted=true, and awards 50 BIX to User A via `reward_ledger` and `activities` (which triggers the wallet update automatically)
-
-### Reward crediting path (single source of truth)
+### Step 1: Database Migration
+A single migration to:
+- Drop `admin_edit_block` trigger
+- Drop `balance_block` trigger
+- Drop `prevent_admin_edit()` function
+- Drop `prevent_balance_edit()` function
+- Add SELECT policy on `users` for `id = auth.uid()`
 
 ```text
-awardReward() 
-  --> inserts into activities table
-  --> credit_wallet_on_activity trigger fires automatically
-  --> wallet balance updated
+DROP TRIGGER IF EXISTS admin_edit_block ON public.users;
+DROP TRIGGER IF EXISTS balance_block ON public.users;
+DROP FUNCTION IF EXISTS public.prevent_admin_edit();
+DROP FUNCTION IF EXISTS public.prevent_balance_edit();
 
-No manual wallet update needed.
+CREATE POLICY "Users can view own row"
+  ON public.users FOR SELECT
+  USING (id = auth.uid());
 ```
+
+### Step 2: Fix `admin-operations/index.ts`
+- Change `const admin = createClient(supabaseUrl, serviceKey);` to `const admin: any = createClient(supabaseUrl, serviceKey);`
+- This resolves all 25+ TypeScript errors in one line
+
+### Step 3: Update `config.toml`
+- Add `[functions.admin-operations]` with `verify_jwt = false`
+- Also add it to the GitHub Actions deploy workflow options
+
+### Step 4: Update GitHub Actions Workflow
+- Add `admin-operations` to the deployment target options in `.github/workflows/supabase-edge-deploy.yml`
+
