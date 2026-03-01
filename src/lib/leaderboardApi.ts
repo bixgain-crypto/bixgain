@@ -94,8 +94,22 @@ async function refreshAccessTokenOnce(): Promise<string | null> {
   return refreshSessionInFlight;
 }
 
+async function ensureAccessToken(): Promise<string | null> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (session?.access_token) return session.access_token;
+  return refreshAccessTokenOnce();
+}
+
 export async function fetchLeaderboard(period: LeaderboardPeriod, limit = 25): Promise<LeaderboardResponse> {
-  const { data, error } = await invokeLeaderboard(period, limit);
+  const initialAccessToken = await ensureAccessToken();
+  if (!initialAccessToken) {
+    throw new Error("Authentication session expired. Please sign in again.");
+  }
+
+  const { data, error } = await invokeLeaderboard(period, limit, initialAccessToken);
 
   if (!error) {
     if (data?.error) {
