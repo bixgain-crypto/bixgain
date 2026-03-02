@@ -5,6 +5,7 @@ import {
   getAuthenticatedUserId,
   parseRequestBody,
   respond,
+  safeErrorMessage,
   userIsAdmin,
 } from "../_shared/progression.ts";
 
@@ -80,7 +81,7 @@ Deno.serve(async (req) => {
         return respond({ error: "Unknown action" }, 400);
     }
   } catch (err) {
-    return respond({ error: (err as Error).message }, 500);
+    return respond({ error: safeErrorMessage(err) }, 500);
   }
 });
 

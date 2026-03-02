@@ -82,6 +82,9 @@ Deno.serve(async (req) => {
 
     return respond({ success: true, value: data }, 200);
   } catch (err) {
-    return respond({ error: (err as Error).message }, 500);
+    const message = err instanceof Error ? err.message : String(err);
+    const isSafe = message.toLowerCase().includes("already claimed") || message.toLowerCase().includes("unauthorized");
+    if (!isSafe) console.error("Unexpected claim_daily_reward error:", message);
+    return respond({ error: isSafe ? message : "An error occurred processing your request" }, 500);
   }
 });

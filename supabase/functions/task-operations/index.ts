@@ -79,7 +79,11 @@ Deno.serve(async (req) => {
         return respond({ error: "Unknown action" }, 400);
     }
   } catch (err) {
-    return respond({ error: (err as Error).message }, 500);
+    const message = err instanceof Error ? err.message : String(err);
+    const safePatterns = ["Unauthorized", "not found", "not authorized", "Invalid", "Maximum attempts", "Referral", "Cannot use", "limit exceeded", "blocked", "already"];
+    const isSafe = safePatterns.some(p => message.toLowerCase().includes(p.toLowerCase()));
+    if (!isSafe) console.error("Unexpected task-operations error:", message);
+    return respond({ error: isSafe ? message : "An error occurred processing your request" }, 500);
   }
 });
 
