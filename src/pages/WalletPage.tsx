@@ -60,15 +60,9 @@ export default function WalletPage() {
     const amount = parseFloat(claimAmount);
     if (isNaN(amount) || amount <= 0) { toast.error("Enter a valid amount"); return; }
     if (amount > Number(wallet.balance)) { toast.error("Insufficient balance"); return; }
-    const taxAmount = amount * 0.05;
-    const netAmount = amount - taxAmount;
-    const { error } = await supabase.from("claims").insert({
-      user_id: session.user.id,
-      amount,
-      tax_amount: taxAmount,
-      net_amount: netAmount,
-      wallet_id: wallet.id,
-      status: "pending",
+    const { data, error } = await supabase.rpc("create_claim", {
+      p_amount: amount,
+      p_wallet_id: wallet.id,
     });
     if (error) { toast.error(error.message); }
     else {

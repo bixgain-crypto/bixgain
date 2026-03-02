@@ -1644,6 +1644,10 @@ export type Database = {
         | { Args: { p_user_id: string }; Returns: Json }
       complete_mission: { Args: { mission_uuid: string }; Returns: string }
       convert_xp_to_bix: { Args: { user_id: string }; Returns: undefined }
+      create_claim: {
+        Args: { p_amount: number; p_wallet_id: string }
+        Returns: Json
+      }
       expire_boosts: { Args: never; Returns: string }
       get_active_season: { Args: never; Returns: string }
       get_admin_stats: {
