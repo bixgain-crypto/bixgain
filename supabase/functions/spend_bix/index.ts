@@ -72,6 +72,9 @@ Deno.serve(async (req) => {
 
     return respond({ success: true, user: data });
   } catch (err) {
-    return respond({ error: (err as Error).message }, 500);
+    const message = err instanceof Error ? err.message : String(err);
+    const isSafe = message.toLowerCase().includes("insufficient") || message.toLowerCase().includes("balance");
+    if (!isSafe) console.error("Unexpected spend_bix error:", message);
+    return respond({ error: isSafe ? message : "An error occurred processing your request" }, 500);
   }
 });

@@ -61,6 +61,7 @@ Deno.serve(async (req) => {
 
     return respond({ success: true, user: data });
   } catch (err) {
-    return respond({ error: (err as Error).message }, 500);
+    console.error("Unexpected convert_xp_to_bix error:", (err as Error).message);
+    return respond({ error: "An error occurred processing your request" }, 500);
   }
 });

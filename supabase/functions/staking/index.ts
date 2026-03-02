@@ -51,7 +51,12 @@ Deno.serve(async (req) => {
         return respond({ error: "Unknown action" }, 400);
     }
   } catch (err) {
-    return respond({ error: (err as Error).message }, 500);
+    const message = err instanceof Error ? err.message : String(err);
+    // Only expose known safe messages
+    const safePatterns = ["Insufficient", "Unauthorized", "not found", "not active", "Minimum", "Maximum", "whole-number", "plan_id", "No claimable", "Unknown action", "balance"];
+    const isSafe = safePatterns.some(p => message.toLowerCase().includes(p.toLowerCase()));
+    if (!isSafe) console.error("Unexpected staking error:", message);
+    return respond({ error: isSafe ? message : "An error occurred processing your request" }, 500);
   }
 });
 

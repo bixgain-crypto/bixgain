@@ -254,7 +254,8 @@ Deno.serve(async (req) => {
       current_user,
     });
   } catch (err) {
-    return respond({ error: (err as Error).message }, 500);
+    console.error("Leaderboard error:", (err as Error).message);
+    return respond({ error: "An error occurred processing your request" }, 500);
   }
 });
 

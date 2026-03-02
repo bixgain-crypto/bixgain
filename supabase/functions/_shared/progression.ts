@@ -109,3 +109,60 @@ export function dbErrorStatus(error: any): number {
 
   return 500;
 }
+
+/** Known safe error substrings that can be shown to the user. */
+const SAFE_ERROR_PATTERNS = [
+  "Insufficient",
+  "Unauthorized",
+  "Forbidden",
+  "Not authenticated",
+  "Invalid amount",
+  "Invalid wallet",
+  "Account flagged",
+  "already claimed",
+  "already linked",
+  "not found",
+  "not active",
+  "Minimum stake",
+  "Maximum stake",
+  "plan_id and positive",
+  "whole-number BIX",
+  "No claimable",
+  "Unknown action",
+  "action is required",
+  "user_id is required",
+  "required",
+  "must be",
+  "too short",
+  "too long",
+  "not allowed",
+  "already taken",
+  "cannot be empty",
+  "No changes",
+  "Maximum attempts",
+  "Referral",
+  "Cannot use your own",
+  "limit exceeded",
+  "blocked",
+  "Staking",
+  "balance",
+];
+
+/**
+ * Sanitize an error for client response.
+ * Returns the original message only if it matches a known safe pattern;
+ * otherwise returns a generic message and logs the real error server-side.
+ */
+export function safeErrorMessage(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+
+  for (const pattern of SAFE_ERROR_PATTERNS) {
+    if (message.toLowerCase().includes(pattern.toLowerCase())) {
+      return message;
+    }
+  }
+
+  // Log the real error server-side only
+  console.error("Unexpected error:", message);
+  return "An error occurred processing your request";
+}
