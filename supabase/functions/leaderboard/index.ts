@@ -157,7 +157,7 @@ Deno.serve(async (req) => {
       ? Math.max(1, Math.min(100, Math.floor(limitCandidate)))
       : 25;
 
-    const admin = createClient(supabaseUrl, serviceKey);
+    const admin: any = createClient(supabaseUrl, serviceKey);
     const userMap = new Map<string, UserRow>();
     let ranked: RankedRow[] = [];
 
