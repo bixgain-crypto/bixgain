@@ -154,6 +154,13 @@ export type Database = {
             foreignKeyName: "admin_logs_admin_id_fkey"
             columns: ["admin_id"]
             isOneToOne: false
+            referencedRelation: "leaderboard_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_logs_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
@@ -289,6 +296,27 @@ export type Database = {
           },
         ]
       }
+      bix_economy_stats: {
+        Row: {
+          id: string
+          total_burned: number | null
+          total_in_circulation: number | null
+          total_minted: number | null
+        }
+        Insert: {
+          id?: string
+          total_burned?: number | null
+          total_in_circulation?: number | null
+          total_minted?: number | null
+        }
+        Update: {
+          id?: string
+          total_burned?: number | null
+          total_in_circulation?: number | null
+          total_minted?: number | null
+        }
+        Relationships: []
+      }
       claims: {
         Row: {
           amount: number
@@ -374,6 +402,13 @@ export type Database = {
           xp_earned?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "daily_rewards_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_view"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "daily_rewards_user_id_fkey"
             columns: ["user_id"]
@@ -525,36 +560,42 @@ export type Database = {
         Row: {
           avatar_url: string | null
           created_at: string
+          daily_earn_cap: number | null
           display_name: string | null
           id: string
           is_active: boolean
           is_frozen: boolean
           referral_code: string | null
           referred_by: string | null
+          today_earned: number | null
           updated_at: string
           user_id: string
         }
         Insert: {
           avatar_url?: string | null
           created_at?: string
+          daily_earn_cap?: number | null
           display_name?: string | null
           id?: string
           is_active?: boolean
           is_frozen?: boolean
           referral_code?: string | null
           referred_by?: string | null
+          today_earned?: number | null
           updated_at?: string
           user_id: string
         }
         Update: {
           avatar_url?: string | null
           created_at?: string
+          daily_earn_cap?: number | null
           display_name?: string | null
           id?: string
           is_active?: boolean
           is_frozen?: boolean
           referral_code?: string | null
           referred_by?: string | null
+          today_earned?: number | null
           updated_at?: string
           user_id?: string
         }
@@ -674,6 +715,24 @@ export type Database = {
           period?: string | null
           updated_at?: string
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      reward_pool: {
+        Row: {
+          daily_distribution_limit: number | null
+          id: string
+          total_available: number | null
+        }
+        Insert: {
+          daily_distribution_limit?: number | null
+          id?: string
+          total_available?: number | null
+        }
+        Update: {
+          daily_distribution_limit?: number | null
+          id?: string
+          total_available?: number | null
         }
         Relationships: []
       }
@@ -844,41 +903,77 @@ export type Database = {
           },
         ]
       }
+      staking_control: {
+        Row: {
+          id: string
+          is_staking_enabled: boolean | null
+          max_platform_staking: number | null
+          reward_reserve: number | null
+          total_platform_staked: number | null
+        }
+        Insert: {
+          id?: string
+          is_staking_enabled?: boolean | null
+          max_platform_staking?: number | null
+          reward_reserve?: number | null
+          total_platform_staked?: number | null
+        }
+        Update: {
+          id?: string
+          is_staking_enabled?: boolean | null
+          max_platform_staking?: number | null
+          reward_reserve?: number | null
+          total_platform_staked?: number | null
+        }
+        Relationships: []
+      }
       staking_plans: {
         Row: {
           apy_rate: number
           created_at: string
+          current_total_staked: number | null
           duration_days: number
           early_unstake_penalty: number
           id: string
           is_active: boolean
           max_amount: number | null
+          max_total_pool: number | null
+          max_users: number | null
           min_amount: number
           name: string
+          total_active_stakers: number | null
           updated_at: string
         }
         Insert: {
           apy_rate?: number
           created_at?: string
+          current_total_staked?: number | null
           duration_days: number
           early_unstake_penalty?: number
           id?: string
           is_active?: boolean
           max_amount?: number | null
+          max_total_pool?: number | null
+          max_users?: number | null
           min_amount?: number
           name: string
+          total_active_stakers?: number | null
           updated_at?: string
         }
         Update: {
           apy_rate?: number
           created_at?: string
+          current_total_staked?: number | null
           duration_days?: number
           early_unstake_penalty?: number
           id?: string
           is_active?: boolean
           max_amount?: number | null
+          max_total_pool?: number | null
+          max_users?: number | null
           min_amount?: number
           name?: string
+          total_active_stakers?: number | null
           updated_at?: string
         }
         Relationships: []
@@ -1126,6 +1221,13 @@ export type Database = {
             foreignKeyName: "user_achievements_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "leaderboard_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_achievements_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
@@ -1159,6 +1261,13 @@ export type Database = {
             columns: ["mission_id"]
             isOneToOne: false
             referencedRelation: "missions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_missions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_view"
             referencedColumns: ["id"]
           },
           {
@@ -1344,6 +1453,13 @@ export type Database = {
             foreignKeyName: "withdrawals_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "leaderboard_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "withdrawals_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
@@ -1367,6 +1483,27 @@ export type Database = {
           rank: number | null
           total_xp: number | null
           username: string | null
+        }
+        Relationships: []
+      }
+      leaderboard_view: {
+        Row: {
+          bix_balance: number | null
+          id: string | null
+          total_xp: number | null
+          username: string | null
+        }
+        Insert: {
+          bix_balance?: number | null
+          id?: string | null
+          total_xp?: number | null
+          username?: string | null
+        }
+        Update: {
+          bix_balance?: number | null
+          id?: string | null
+          total_xp?: number | null
+          username?: string | null
         }
         Relationships: []
       }
@@ -1549,6 +1686,16 @@ export type Database = {
       sanitize_platform_username: {
         Args: { p_input: string; p_user_id: string }
         Returns: string
+      }
+      spend_bix:
+        | {
+            Args: { p_amount: number; p_description?: string }
+            Returns: undefined
+          }
+        | { Args: { p_amount: number; p_user_id: string }; Returns: undefined }
+      stake_tokens: {
+        Args: { p_amount: number; p_plan_id: string; p_user_id: string }
+        Returns: undefined
       }
       update_badge: { Args: never; Returns: undefined }
       update_profile: {

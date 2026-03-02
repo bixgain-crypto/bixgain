@@ -126,7 +126,7 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 async function sumNumericColumn(
-  admin: ReturnType<typeof createClient>,
+  admin: any,
   table: string,
   column: string,
   applyFilters?: (query: any) => any,
@@ -160,7 +160,7 @@ async function sumNumericColumn(
 }
 
 async function insertAudit(
-  admin: ReturnType<typeof createClient>,
+  admin: any,
   adminUserId: string,
   action: string,
   targetTable: string | null,
@@ -178,7 +178,7 @@ async function insertAudit(
   });
 }
 
-async function getDashboard(admin: ReturnType<typeof createClient>) {
+async function getDashboard(admin: any) {
   const [
     statsResult,
     totalTasksResult,
@@ -197,8 +197,8 @@ async function getDashboard(admin: ReturnType<typeof createClient>) {
     admin.from("fraud_flags").select("*", { count: "exact", head: true }).eq("status", "open"),
     admin.from("stakes").select("*", { count: "exact", head: true }).eq("status", "active"),
     sumNumericColumn(admin, "users", "bix_balance"),
-    sumNumericColumn(admin, "stakes", "amount", (query) => query.eq("status", "active")),
-    sumNumericColumn(admin, "activities", "points_earned", (query) =>
+    sumNumericColumn(admin, "stakes", "amount", (query: any) => query.eq("status", "active")),
+    sumNumericColumn(admin, "activities", "points_earned", (query: any) =>
       query.contains("metadata", { unit: "bix" }).gt("points_earned", 0)
     ),
   ]);
@@ -234,7 +234,7 @@ async function getDashboard(admin: ReturnType<typeof createClient>) {
   });
 }
 
-async function listUsers(admin: ReturnType<typeof createClient>, body: JsonRecord) {
+async function listUsers(admin: any, body: JsonRecord) {
   const search = asString(body.search);
   const limit = clamp(asNonNegativeInteger(body.limit) ?? 120, 1, 500);
 
@@ -251,7 +251,7 @@ async function listUsers(admin: ReturnType<typeof createClient>, body: JsonRecor
   const { data: users, error } = await query;
   if (error) return respond({ error: error.message }, dbErrorStatus(error));
 
-  const userIds = (users || []).map((row) => row.id);
+  const userIds = (users || []).map((row: any) => row.id);
   let profilesByUserId = new Map<string, JsonRecord>();
 
   if (userIds.length > 0) {
@@ -262,10 +262,10 @@ async function listUsers(admin: ReturnType<typeof createClient>, body: JsonRecor
 
     if (profilesError) return respond({ error: profilesError.message }, dbErrorStatus(profilesError));
 
-    profilesByUserId = new Map((profiles || []).map((profile) => [profile.user_id, profile as JsonRecord]));
+    profilesByUserId = new Map((profiles || []).map((profile: any) => [profile.user_id, profile as JsonRecord]));
   }
 
-  const rows = (users || []).map((user) => {
+  const rows = (users || []).map((user: any) => {
     const profile = profilesByUserId.get(user.id);
     return {
       ...user,
@@ -279,7 +279,7 @@ async function listUsers(admin: ReturnType<typeof createClient>, body: JsonRecor
   return respond({ users: rows });
 }
 
-async function updateUser(admin: ReturnType<typeof createClient>, adminUserId: string, body: JsonRecord) {
+async function updateUser(admin: any, adminUserId: string, body: JsonRecord) {
   const targetUserId = asString(body.target_user_id);
   if (!targetUserId) return respond({ error: "target_user_id is required" }, 400);
 
@@ -371,7 +371,7 @@ async function updateUser(admin: ReturnType<typeof createClient>, adminUserId: s
 
   return respond({
     user: {
-      ...user,
+      ...(user || {}),
       display_name: profile?.display_name || null,
       is_active: profile?.is_active ?? true,
       is_frozen: profile?.is_frozen ?? false,
@@ -480,7 +480,7 @@ function buildTaskPatch(body: JsonRecord, mode: "create" | "update"): { patch?: 
   return { patch };
 }
 
-async function listTasks(admin: ReturnType<typeof createClient>, body: JsonRecord) {
+async function listTasks(admin: any, body: JsonRecord) {
   const search = asString(body.search);
   const limit = clamp(asNonNegativeInteger(body.limit) ?? 200, 1, 500);
 
@@ -499,7 +499,7 @@ async function listTasks(admin: ReturnType<typeof createClient>, body: JsonRecor
   return respond({ tasks: data || [] });
 }
 
-async function createTask(admin: ReturnType<typeof createClient>, adminUserId: string, body: JsonRecord) {
+async function createTask(admin: any, adminUserId: string, body: JsonRecord) {
   const { patch, error: patchError } = buildTaskPatch(body, "create");
   if (patchError || !patch) return respond({ error: patchError || "Invalid task payload" }, 400);
 
@@ -510,7 +510,7 @@ async function createTask(admin: ReturnType<typeof createClient>, adminUserId: s
   return respond({ task: data });
 }
 
-async function updateTask(admin: ReturnType<typeof createClient>, adminUserId: string, body: JsonRecord) {
+async function updateTask(admin: any, adminUserId: string, body: JsonRecord) {
   const taskId = asString(body.task_id);
   if (!taskId) return respond({ error: "task_id is required" }, 400);
 
@@ -531,7 +531,7 @@ async function updateTask(admin: ReturnType<typeof createClient>, adminUserId: s
   return respond({ task: data });
 }
 
-async function grantRewards(admin: ReturnType<typeof createClient>, adminUserId: string, body: JsonRecord) {
+async function grantRewards(admin: any, adminUserId: string, body: JsonRecord) {
   const targetUserId = asString(body.target_user_id);
   if (!targetUserId) return respond({ error: "target_user_id is required" }, 400);
 
@@ -549,7 +549,14 @@ async function grantRewards(admin: ReturnType<typeof createClient>, adminUserId:
       p_user_id: targetUserId,
       p_xp_amount: xpAmount,
     });
-    if (error) return respond({ error: error.message }, dbErrorStatus(error));
+    if (error) {
+      // Fallback to award_xp if progression_award_xp doesn't exist
+      const { error: fallbackError } = await admin.rpc("award_xp", {
+        user_id: targetUserId,
+        xp_amount: xpAmount,
+      });
+      if (fallbackError) return respond({ error: fallbackError.message }, dbErrorStatus(fallbackError));
+    }
   }
 
   if (bixAmount > 0) {
@@ -614,7 +621,7 @@ async function grantRewards(admin: ReturnType<typeof createClient>, adminUserId:
   return respond({ success: true, user });
 }
 
-async function listActivities(admin: ReturnType<typeof createClient>, body: JsonRecord) {
+async function listActivities(admin: any, body: JsonRecord) {
   const userId = asString(body.user_id);
   const limit = clamp(asNonNegativeInteger(body.limit) ?? 120, 1, 500);
 
@@ -631,7 +638,7 @@ async function listActivities(admin: ReturnType<typeof createClient>, body: Json
   const { data: activities, error } = await query;
   if (error) return respond({ error: error.message }, dbErrorStatus(error));
 
-  const userIds = [...new Set((activities || []).map((row) => row.user_id))];
+  const userIds = [...new Set((activities || []).map((row: any) => row.user_id))];
   let usernameById = new Map<string, string | null>();
 
   if (userIds.length > 0) {
@@ -640,11 +647,11 @@ async function listActivities(admin: ReturnType<typeof createClient>, body: Json
       .select("id, username")
       .in("id", userIds);
     if (userError) return respond({ error: userError.message }, dbErrorStatus(userError));
-    usernameById = new Map((users || []).map((row) => [row.id, row.username]));
+    usernameById = new Map((users || []).map((row: any) => [row.id, row.username]));
   }
 
   return respond({
-    activities: (activities || []).map((row) => ({
+    activities: (activities || []).map((row: any) => ({
       ...row,
       username: usernameById.get(row.user_id) || null,
     })),
@@ -669,7 +676,7 @@ function parseMetadata(value: unknown): JsonRecord | null {
   return null;
 }
 
-async function createActivity(admin: ReturnType<typeof createClient>, adminUserId: string, body: JsonRecord) {
+async function createActivity(admin: any, adminUserId: string, body: JsonRecord) {
   const targetUserId = asString(body.target_user_id);
   if (!targetUserId) return respond({ error: "target_user_id is required" }, 400);
 
@@ -692,7 +699,14 @@ async function createActivity(admin: ReturnType<typeof createClient>, adminUserI
       p_user_id: targetUserId,
       p_xp_amount: pointsEarned,
     });
-    if (xpError) return respond({ error: xpError.message }, dbErrorStatus(xpError));
+    if (xpError) {
+      // Fallback to award_xp
+      const { error: fallbackError } = await admin.rpc("award_xp", {
+        user_id: targetUserId,
+        xp_amount: pointsEarned,
+      });
+      if (fallbackError) return respond({ error: fallbackError.message }, dbErrorStatus(fallbackError));
+    }
   }
 
   const metadata = parseMetadata(body.metadata) || {};
@@ -730,7 +744,7 @@ async function createActivity(admin: ReturnType<typeof createClient>, adminUserI
   return respond({ activity });
 }
 
-async function listSettings(admin: ReturnType<typeof createClient>) {
+async function listSettings(admin: any) {
   const { data, error } = await admin
     .from("platform_settings")
     .select("id, key, value, description, updated_at, updated_by")
@@ -740,7 +754,7 @@ async function listSettings(admin: ReturnType<typeof createClient>) {
   return respond({ settings: data || [] });
 }
 
-async function updateSetting(admin: ReturnType<typeof createClient>, adminUserId: string, body: JsonRecord) {
+async function updateSetting(admin: any, adminUserId: string, body: JsonRecord) {
   const key = asString(body.key);
   if (!key) return respond({ error: "key is required" }, 400);
 
@@ -774,7 +788,7 @@ async function updateSetting(admin: ReturnType<typeof createClient>, adminUserId
   return respond({ setting: data });
 }
 
-async function listAuditLogs(admin: ReturnType<typeof createClient>, body: JsonRecord) {
+async function listAuditLogs(admin: any, body: JsonRecord) {
   const limit = clamp(asNonNegativeInteger(body.limit) ?? 180, 1, 500);
 
   const { data: logs, error } = await admin
@@ -785,7 +799,7 @@ async function listAuditLogs(admin: ReturnType<typeof createClient>, body: JsonR
 
   if (error) return respond({ error: error.message }, dbErrorStatus(error));
 
-  const adminUserIds = [...new Set((logs || []).map((row) => row.admin_user_id))];
+  const adminUserIds = [...new Set((logs || []).map((row: any) => row.admin_user_id))];
   let usernameById = new Map<string, string | null>();
 
   if (adminUserIds.length > 0) {
@@ -795,11 +809,11 @@ async function listAuditLogs(admin: ReturnType<typeof createClient>, body: JsonR
       .in("id", adminUserIds);
 
     if (usersError) return respond({ error: usersError.message }, dbErrorStatus(usersError));
-    usernameById = new Map((users || []).map((row) => [row.id, row.username]));
+    usernameById = new Map((users || []).map((row: any) => [row.id, row.username]));
   }
 
   return respond({
-    logs: (logs || []).map((row) => ({
+    logs: (logs || []).map((row: any) => ({
       ...row,
       admin_username: usernameById.get(row.admin_user_id) || null,
     })),
