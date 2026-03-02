@@ -25,7 +25,7 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.leaderboard]
-verify_jwt = true
+verify_jwt = false
 
 [functions.claim_daily_reward]
 verify_jwt = true
