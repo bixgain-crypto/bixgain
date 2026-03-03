@@ -1,4 +1,4 @@
-import { invokeStaking } from "@/lib/stakingApi";
+﻿import { invokeStaking } from "@/lib/stakingApi";
 import { useAppData } from "@/context/AppDataContext";
 import { useAuth } from "@/hooks/useAuth";
 import { motion, AnimatePresence } from "framer-motion";
@@ -185,10 +185,10 @@ export default function StakingTab() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="glass rounded-lg p-5 max-w-md"
+            className="glass rounded-lg p-5 max-w-xl"
           >
             <h4 className="font-semibold mb-3">
-              Stake BIX — {plans.find((p) => p.id === selectedPlan)?.name}
+              Stake BIX - {plans.find((p) => p.id === selectedPlan)?.name}
             </h4>
             <div className="space-y-3">
               <div>
@@ -253,8 +253,8 @@ export default function StakingTab() {
                   transition={{ delay: i * 0.03 }}
                   className={`glass rounded-lg p-4 ${!isActive ? "opacity-60" : ""}`}
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                    <div className="flex min-w-0 items-center gap-2">
                       {isActive ? (
                         <Lock className="h-4 w-4 text-primary" />
                       ) : stake.status === "completed" ? (
@@ -271,7 +271,7 @@ export default function StakingTab() {
                         {stake.status}
                       </span>
                     </div>
-                    <div className="text-right">
+                    <div className="text-right ml-auto">
                       <p className="font-mono text-sm font-bold">{Number(stake.amount).toLocaleString()} BIX</p>
                       {Number(stake.accrued_reward) > 0 && (
                         <p className="font-mono text-xs text-success">+{Number(stake.accrued_reward).toFixed(2)} earned</p>
@@ -330,3 +330,5 @@ export default function StakingTab() {
     </div>
   );
 }
+
+

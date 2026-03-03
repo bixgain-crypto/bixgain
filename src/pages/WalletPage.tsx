@@ -101,7 +101,7 @@ export default function WalletPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-8">
+      <div className="space-y-6 lg:space-y-8">
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
           <div className="flex items-center justify-between gap-3">
             <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2 sm:gap-3">
@@ -111,7 +111,8 @@ export default function WalletPage() {
             <Link to="/store">
               <Button variant="outline" className="border-primary/30 text-primary">
                 <ShoppingBag className="h-4 w-4 mr-1.5" />
-                Store
+                <span className="hidden sm:inline">Store</span>
+                <span className="sm:hidden">Shop</span>
               </Button>
             </Link>
           </div>
@@ -122,7 +123,7 @@ export default function WalletPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="glass rounded-xl p-8 glow-gold"
+          className="glass rounded-xl p-6 sm:p-8 glow-gold"
         >
           <p className="text-sm text-muted-foreground mb-2">Total Balance</p>
           <p className="text-3xl sm:text-5xl font-bold font-mono text-gradient-gold">
@@ -148,7 +149,7 @@ export default function WalletPage() {
         {/* Tabs */}
         <Tabs defaultValue="history" className="w-full">
           <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
-            <TabsList className="bg-secondary/50 border border-border w-max sm:w-full justify-start">
+            <TabsList className="bg-secondary/50 border border-border w-max lg:w-full justify-start">
               <TabsTrigger value="history">History</TabsTrigger>
               <TabsTrigger value="claim">Claim</TabsTrigger>
               <TabsTrigger value="send">Send</TabsTrigger>
@@ -169,17 +170,17 @@ export default function WalletPage() {
                   {transactions.map((tx) => {
                     const isEarning = ["earn", "bonus", "referral"].includes(tx.transaction_type);
                     return (
-                      <div key={tx.id} className="flex items-center justify-between rounded-md bg-secondary/50 px-4 py-3">
-                        <div className="flex items-center gap-3">
+                      <div key={tx.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-secondary/50 px-4 py-3">
+                        <div className="flex min-w-0 items-center gap-3">
                           <div className={`rounded-full p-2 ${isEarning ? "bg-success/10" : "bg-destructive/10"}`}>
                             {isEarning ? <ArrowDownLeft className="h-4 w-4 text-success" /> : <ArrowUpRight className="h-4 w-4 text-destructive" />}
                           </div>
-                          <div>
-                            <p className="text-sm font-medium capitalize">{tx.transaction_type.replace("_", " ")}</p>
-                            <p className="text-xs text-muted-foreground">{tx.description}</p>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium capitalize truncate">{tx.transaction_type.replace("_", " ")}</p>
+                            <p className="text-xs text-muted-foreground truncate">{tx.description}</p>
                           </div>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right ml-auto">
                           <p className={`font-mono text-sm font-semibold ${isEarning ? "text-success" : "text-destructive"}`}>
                             {isEarning ? "+" : "-"}{Number(tx.net_amount).toLocaleString()} BIX
                           </p>
@@ -197,8 +198,8 @@ export default function WalletPage() {
 
           {/* Claim */}
           <TabsContent value="claim">
-            <div className="space-y-6">
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass rounded-lg p-6 max-w-md">
+            <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)] items-start">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass rounded-lg p-6">
                 <h2 className="text-lg font-semibold mb-4">New Claim</h2>
                 <form onSubmit={handleClaim} className="space-y-4">
                   <div className="space-y-2">
@@ -230,8 +231,8 @@ export default function WalletPage() {
                       const config = statusConfig[claim.status as keyof typeof statusConfig];
                       const StatusIcon = config.icon;
                       return (
-                        <div key={claim.id} className="flex items-center justify-between rounded-md bg-secondary/50 px-4 py-3">
-                          <div className="flex items-center gap-3">
+                        <div key={claim.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-secondary/50 px-4 py-3">
+                          <div className="flex min-w-0 items-center gap-3">
                             <div className={`rounded-full p-2 ${config.bg}`}>
                               <StatusIcon className={`h-4 w-4 ${config.color}`} />
                             </div>
@@ -240,7 +241,7 @@ export default function WalletPage() {
                               <p className="text-xs text-muted-foreground">{new Date(claim.created_at).toLocaleDateString()}</p>
                             </div>
                           </div>
-                          <div className="text-right">
+                          <div className="text-right ml-auto">
                             <p className="font-mono text-sm font-semibold">{Number(claim.net_amount).toLocaleString()} BIX</p>
                             <p className="text-xs text-muted-foreground">
                               Gross: {Number(claim.amount).toLocaleString()} - Tax: {Number(claim.tax_amount).toLocaleString()}

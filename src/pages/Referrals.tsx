@@ -135,7 +135,7 @@ export default function Referrals() {
           <div className="relative space-y-5">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">
+                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold flex items-center gap-2">
                   <Users className="h-7 w-7 text-primary" />
                   Referral Engine
                 </h1>
@@ -172,7 +172,7 @@ export default function Referrals() {
           </div>
         </motion.section>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <motion.section
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}

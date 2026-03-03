@@ -309,7 +309,7 @@ export default function Tasks() {
     <AppLayout>
       <div className="space-y-6">
         <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold flex items-center gap-3">
             <Target className="h-7 w-7 text-primary" />
             Missions
           </h1>
@@ -318,9 +318,9 @@ export default function Tasks() {
 
         <Tabs value={category} onValueChange={(value) => setCategory(value as MissionCategory)} className="w-full">
           <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
-          <TabsList className="w-max sm:w-full grid grid-cols-5 gap-2 bg-transparent p-0">
+          <TabsList className="w-max lg:w-full grid grid-cols-5 gap-2 bg-transparent p-0">
             {CATEGORY_ORDER.map((value) => (
-              <TabsTrigger key={value} value={value} className="glass rounded-xl py-2">
+              <TabsTrigger key={value} value={value} className="glass rounded-xl px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
                 {CATEGORY_LABELS[value]}
               </TabsTrigger>
             ))}
@@ -332,7 +332,7 @@ export default function Tasks() {
           <div className="glass rounded-2xl p-5 text-sm text-muted-foreground">Loading missions...</div>
         ) : null}
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
           {visibleMissions.map((mission) => {
             const progress = getProgress(mission);
             const claimed = isMissionClaimed(mission);
@@ -355,7 +355,7 @@ export default function Tasks() {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                   <div className="rounded-lg border border-border/60 bg-secondary/35 px-3 py-2">
                     <p className="text-xs text-muted-foreground">Progress</p>
                     <p className="font-semibold">{`${progress.current} / ${mission.target}`}</p>

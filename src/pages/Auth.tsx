@@ -88,7 +88,7 @@ export default function Auth() {
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.5 }}
-        className="w-full max-w-md space-y-8 glass rounded-xl p-6 sm:p-8"
+        className="w-full max-w-xl space-y-8 glass rounded-xl p-6 sm:p-8"
       >
         <div className="flex flex-col items-center gap-4">
           <BixLogo size="lg" />

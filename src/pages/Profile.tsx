@@ -79,7 +79,7 @@ export default function Profile() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.06 }}
-          className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+          className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
         >
           <div className="glass rounded-xl p-5">
             <p className="text-xs uppercase tracking-wider text-muted-foreground">Username</p>
@@ -129,7 +129,7 @@ export default function Profile() {
             <UserRoundPen className="h-5 w-5 text-primary" />
             Change Username
           </h2>
-          <div className="mt-3 space-y-2 max-w-sm">
+          <div className="mt-3 space-y-2 max-w-xl">
             <Label htmlFor="username">Username</Label>
             <Input
               id="username"

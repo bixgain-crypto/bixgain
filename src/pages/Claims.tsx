@@ -11,7 +11,7 @@ export default function Claims() {
 
   return (
     <AppLayout>
-      <div className="flex flex-col items-center justify-center min-h-[70vh] space-y-8">
+      <div className="flex flex-col items-center justify-center min-h-[70vh] space-y-8 w-full">
         <motion.div
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -25,15 +25,15 @@ export default function Claims() {
             <Rocket className="h-20 w-20 text-primary mx-auto" />
           </motion.div>
 
-          <h1 className="text-4xl font-bold">
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold">
             <span className="text-gradient-gold">Coming Soon</span>
           </h1>
-          <p className="text-lg text-muted-foreground max-w-md mx-auto">
+          <p className="text-base sm:text-lg text-muted-foreground max-w-lg mx-auto">
             We're building something amazing! These features are in active development and will be available soon.
           </p>
         </motion.div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-3xl w-full">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6 max-w-6xl w-full">
           {comingSoonFeatures.map((feature, i) => (
             <motion.div
               key={feature.title}

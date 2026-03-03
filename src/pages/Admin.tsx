@@ -389,7 +389,7 @@ export default function Admin() {
   return (
     <AppLayout>
       <div className="space-y-6">
-        <div className="glass rounded-xl p-4 grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
+        <div className="glass rounded-xl p-4 grid grid-cols-2 lg:grid-cols-5 gap-3 text-sm">
           <div><p className="text-muted-foreground">Total Users</p><p className="font-semibold">{Number(adminStats?.total_users || 0).toLocaleString()}</p></div>
           <div><p className="text-muted-foreground">TVL Locked</p><p className="font-semibold">{Number(adminStats?.total_tvl_locked || 0).toLocaleString()}</p></div>
           <div><p className="text-muted-foreground">Rewards Distributed</p><p className="font-semibold">{Number(adminStats?.total_rewards_distributed || 0).toLocaleString()}</p></div>
@@ -436,7 +436,7 @@ export default function Admin() {
               </Button>
             </div>
             {loading.adminUsers ? <p className="text-sm text-muted-foreground">Loading users...</p> : null}
-            <div className="space-y-2">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
               {filteredUsers.map((item) => (
                 <div key={item.id} className="glass rounded-lg p-3 space-y-2">
                   <div className="flex justify-between gap-2 items-center">
@@ -508,7 +508,7 @@ export default function Admin() {
             </div>
 
             <Input placeholder="Search missions" value={taskSearch} onChange={(event) => setTaskSearch(event.target.value)} />
-            <div className="space-y-2">
+            <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-2">
               {filteredTasks.map((task) => (
                 <div key={task.id} className="glass rounded-lg p-3 flex justify-between items-center gap-2">
                   <div>
@@ -579,7 +579,7 @@ export default function Admin() {
               <Textarea value={activityDescription} onChange={(event) => setActivityDescription(event.target.value)} placeholder="Description" />
               <Button onClick={handleCreateActivity} disabled={createActivityMutation.isPending}>{createActivityMutation.isPending ? "Creating..." : "Create Activity"}</Button>
             </div>
-            <div className="space-y-2">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
               {adminActivities.map((item) => (
                 <div key={item.id} className="glass rounded-lg p-3">
                   <p className="font-semibold text-sm">{item.username || item.user_id} <span className="text-muted-foreground">{item.activity_type}</span></p>
@@ -589,7 +589,7 @@ export default function Admin() {
             </div>
           </TabsContent>
 
-          <TabsContent value="data" className="space-y-2">
+          <TabsContent value="data" className="grid grid-cols-1 xl:grid-cols-2 gap-2">
             {adminSettings.map((setting) => (
               <div key={setting.id} className="glass rounded-lg p-3 space-y-2">
                 <p className="font-medium">{setting.key}</p>
@@ -599,7 +599,7 @@ export default function Admin() {
             ))}
           </TabsContent>
 
-          <TabsContent value="audit" className="space-y-2">
+          <TabsContent value="audit" className="grid grid-cols-1 xl:grid-cols-2 gap-2">
             {adminAuditLogs.map((row) => (
               <div key={row.id} className="glass rounded-lg p-3">
                 <p className="font-semibold text-sm">{row.action}</p>

@@ -8,7 +8,7 @@ export default function Boosts() {
     <AppLayout>
       <div className="space-y-6">
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="text-3xl font-bold flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold flex items-center gap-3">
             <Zap className="h-8 w-8 text-primary" />
             Boosts
           </h1>

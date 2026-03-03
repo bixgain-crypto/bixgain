@@ -151,7 +151,7 @@ export default function Dashboard() {
           <div className="relative space-y-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h1 className="text-2xl sm:text-3xl font-bold">{levelName}</h1>
+                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold">{levelName}</h1>
                 <p className="text-sm text-muted-foreground">{`Current Level: ${levelNumber}`}</p>
               </div>
               <LevelBadge totalXp={totalXp} />
@@ -191,7 +191,7 @@ export default function Dashboard() {
             <p className="text-sm text-muted-foreground">
               Claim before timeout or the reward expires.
             </p>
-            <div className="space-y-2">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
               {rewardNotifications.slice(0, 5).map((notification) => (
                 <div
                   key={notification.id}

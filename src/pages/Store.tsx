@@ -101,14 +101,15 @@ export default function Store() {
       <div className="space-y-6">
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
           <div className="flex items-center justify-between gap-3">
-            <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2 sm:gap-3">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold flex items-center gap-2 sm:gap-3">
               <ShoppingBag className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
               Bix Store
             </h1>
             <Link to="/wallet">
               <Button variant="outline" className="border-primary/30 text-primary">
                 <Wallet className="h-4 w-4 mr-1.5" />
-                Wallet
+                <span className="hidden sm:inline">Wallet</span>
+                <span className="sm:hidden">Back</span>
               </Button>
             </Link>
           </div>
@@ -127,7 +128,7 @@ export default function Store() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.05 }}
-          className="grid grid-cols-1 gap-4 md:grid-cols-2"
+          className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
         >
           {STORE_ITEMS.map((item) => (
             <div key={item.id} className="glass rounded-2xl p-5 flex flex-col justify-between">

@@ -81,14 +81,14 @@ export default function SpinToEarn() {
     <AppLayout>
       <div className="space-y-8">
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold flex items-center gap-3">
             <Orbit className="h-8 w-8 text-primary" />
             Daily Boost
           </h1>
           <p className="mt-1 text-muted-foreground">Boost your progression</p>
         </motion.div>
 
-        <div className="flex flex-col items-center gap-7">
+        <div className="flex flex-col items-center gap-7 max-w-6xl mx-auto">
           <div className="glass rounded-xl px-5 py-3 text-center">
             <p className="text-xs uppercase tracking-wider text-muted-foreground">Bix Balance</p>
             <p className="text-xl font-bold">{Number(user?.bix_balance || 0).toLocaleString()} Bix</p>
@@ -104,7 +104,7 @@ export default function SpinToEarn() {
               <div className="w-0 h-0 border-l-[14px] border-r-[14px] border-t-[22px] border-l-transparent border-r-transparent border-t-primary drop-shadow-lg" />
             </div>
 
-            <div className="relative w-64 h-64 sm:w-80 sm:h-80">
+            <div className="relative w-64 h-64 sm:w-80 sm:h-80 lg:w-[28rem] lg:h-[28rem]">
               <svg
                 viewBox="0 0 320 320"
                 className="w-full h-full drop-shadow-2xl"
@@ -184,7 +184,7 @@ export default function SpinToEarn() {
             onClick={handleSpin}
             disabled={spinning}
             size="lg"
-            className="bg-gradient-gold text-primary-foreground font-semibold text-lg px-12 glow-gold disabled:opacity-50"
+            className="bg-gradient-gold text-primary-foreground font-semibold text-base sm:text-lg px-8 sm:px-12 glow-gold disabled:opacity-50"
           >
             {spinning ? (
               <>
