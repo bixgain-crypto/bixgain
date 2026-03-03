@@ -2,6 +2,7 @@ import { AppLayout } from "@/components/AppLayout";
 import { useAppData } from "@/context/AppDataContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -10,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
   type AdminTask,
+  createClaimableRewardNotifications,
   createAdminActivity,
   createAdminTask,
   grantAdminRewards,
@@ -96,6 +98,12 @@ export default function Admin() {
   const [rewardXp, setRewardXp] = useState("");
   const [rewardBix, setRewardBix] = useState("");
   const [rewardReason, setRewardReason] = useState("");
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [claimAudience, setClaimAudience] = useState<"selected" | "all">("selected");
+  const [claimRewardXp, setClaimRewardXp] = useState("");
+  const [claimRewardBix, setClaimRewardBix] = useState("");
+  const [claimReason, setClaimReason] = useState("");
+  const [claimTimeoutMinutes, setClaimTimeoutMinutes] = useState("60");
   const [activityUserId, setActivityUserId] = useState("");
   const [activityType, setActivityType] = useState<TaskType>("custom");
   const [activityPoints, setActivityPoints] = useState("0");
@@ -115,6 +123,18 @@ export default function Admin() {
     });
   }, [users, userSearch]);
 
+  const allFilteredSelected = useMemo(() => {
+    if (filteredUsers.length === 0) return false;
+    const selected = new Set(selectedUserIds);
+    return filteredUsers.every((item) => selected.has(item.id));
+  }, [filteredUsers, selectedUserIds]);
+
+  const allUsersSelected = useMemo(() => {
+    if (users.length === 0) return false;
+    const selected = new Set(selectedUserIds);
+    return users.every((item) => selected.has(item.id));
+  }, [selectedUserIds, users]);
+
   const filteredTasks = useMemo(() => {
     const q = taskSearch.trim().toLowerCase();
     if (!q) return tasks;
@@ -131,6 +151,11 @@ export default function Admin() {
     if (!rewardUserId && users.length > 0) setRewardUserId(users[0].id);
     if (!activityUserId && users.length > 0) setActivityUserId(users[0].id);
   }, [users, rewardUserId, activityUserId]);
+
+  useEffect(() => {
+    const allowedIds = new Set(users.map((item) => item.id));
+    setSelectedUserIds((current) => current.filter((id) => allowedIds.has(id)));
+  }, [users]);
 
   useEffect(() => {
     if (!adminSettings?.length) return;
@@ -152,6 +177,41 @@ export default function Admin() {
       refreshAdminSettings(),
       refreshAdminAuditLogs(),
     ]);
+  };
+
+  const toggleUserSelection = (userId: string, checked: boolean) => {
+    setSelectedUserIds((current) => {
+      if (checked) {
+        if (current.includes(userId)) return current;
+        return [...current, userId];
+      }
+      return current.filter((id) => id !== userId);
+    });
+  };
+
+  const toggleSelectAllFiltered = (checked: boolean) => {
+    if (!checked) {
+      const filteredIdSet = new Set(filteredUsers.map((item) => item.id));
+      setSelectedUserIds((current) => current.filter((id) => !filteredIdSet.has(id)));
+      return;
+    }
+
+    setSelectedUserIds((current) => {
+      const next = new Set(current);
+      for (const item of filteredUsers) {
+        next.add(item.id);
+      }
+      return Array.from(next);
+    });
+  };
+
+  const toggleSelectAllUsers = (checked: boolean) => {
+    if (!checked) {
+      setSelectedUserIds([]);
+      return;
+    }
+
+    setSelectedUserIds(users.map((item) => item.id));
   };
 
   const updateUserMutation = useMutation({
@@ -199,6 +259,21 @@ export default function Admin() {
       toast.success("Rewards granted");
     },
     onError: (error: unknown) => toast.error(error instanceof Error ? error.message : "Failed to grant rewards"),
+  });
+
+  const createClaimableRewardsMutation = useMutation({
+    mutationFn: createClaimableRewardNotifications,
+    onSuccess: async (result) => {
+      await Promise.all([refreshAdminStats(), refreshAdminUsers(), refreshAdminAuditLogs()]);
+      toast.success(
+        `Claim notification sent to ${Number(result.created_count || 0).toLocaleString()} user(s)`,
+      );
+      setClaimRewardXp("");
+      setClaimRewardBix("");
+      setClaimReason("");
+    },
+    onError: (error: unknown) =>
+      toast.error(error instanceof Error ? error.message : "Failed to create claim notifications"),
   });
 
   const createActivityMutation = useMutation({
@@ -256,6 +331,34 @@ export default function Admin() {
     });
   };
 
+  const handleCreateClaimableRewards = async () => {
+    const xpAmount = claimRewardXp.trim() ? Number.parseInt(claimRewardXp, 10) : 0;
+    const bixAmount = claimRewardBix.trim() ? Number.parseInt(claimRewardBix, 10) : 0;
+    const timeoutMinutes = Number.parseInt(claimTimeoutMinutes, 10);
+
+    if (!Number.isInteger(xpAmount) || xpAmount < 0 || !Number.isInteger(bixAmount) || bixAmount < 0) {
+      return toast.error("Reward values must be non-negative integers");
+    }
+    if (xpAmount === 0 && bixAmount === 0) return toast.error("Provide XP and/or BIX amount");
+    if (!Number.isInteger(timeoutMinutes) || timeoutMinutes <= 0) {
+      return toast.error("Timeout must be a positive integer (minutes)");
+    }
+
+    if (claimAudience === "selected" && selectedUserIds.length === 0) {
+      return toast.error("Select at least one user from Users tab or switch to All Users");
+    }
+
+    await createClaimableRewardsMutation.mutateAsync({
+      all_users: claimAudience === "all",
+      user_ids: claimAudience === "selected" ? selectedUserIds : [],
+      xp_amount: xpAmount,
+      bix_amount: bixAmount,
+      reason: claimReason.trim() || "Admin timed claim reward",
+      description: claimReason.trim() || "Admin timed claim reward",
+      expires_in_seconds: timeoutMinutes * 60,
+    });
+  };
+
   const handleCreateActivity = async () => {
     const points = Number(activityPoints);
     if (!activityUserId) return toast.error("Select a user");
@@ -307,18 +410,46 @@ export default function Admin() {
           </div>
 
           <TabsContent value="users" className="space-y-3">
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Input placeholder="Search users" value={userSearch} onChange={(event) => setUserSearch(event.target.value)} />
               <Button variant="outline" onClick={() => void refreshAdminViews()} disabled={loading.adminUsers}>Refresh</Button>
+              <Button
+                variant="outline"
+                onClick={() => toggleSelectAllFiltered(!allFilteredSelected)}
+                disabled={filteredUsers.length === 0}
+              >
+                {allFilteredSelected ? "Unselect Filtered" : "Select Filtered"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => toggleSelectAllUsers(!allUsersSelected)}
+                disabled={users.length === 0}
+              >
+                {allUsersSelected ? "Unselect All Users" : "Select All Users"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setSelectedUserIds([])}
+                disabled={selectedUserIds.length === 0}
+              >
+                Clear Selection ({selectedUserIds.length})
+              </Button>
             </div>
             {loading.adminUsers ? <p className="text-sm text-muted-foreground">Loading users...</p> : null}
             <div className="space-y-2">
               {filteredUsers.map((item) => (
                 <div key={item.id} className="glass rounded-lg p-3 space-y-2">
                   <div className="flex justify-between gap-2 items-center">
-                    <div>
+                    <div className="flex items-start gap-2">
+                      <Checkbox
+                        checked={selectedUserIds.includes(item.id)}
+                        onCheckedChange={(checked) => toggleUserSelection(item.id, checked === true)}
+                        aria-label={`Select ${item.username || item.id}`}
+                      />
+                      <div>
                       <p className="font-semibold">{item.username || "Unnamed user"}</p>
                       <p className="text-xs text-muted-foreground">{item.id}</p>
+                      </div>
                     </div>
                     <div className="flex gap-1">
                       <Badge variant={item.is_admin ? "default" : "secondary"}>{item.is_admin ? "Admin" : "User"}</Badge>
@@ -391,18 +522,43 @@ export default function Admin() {
           </TabsContent>
 
           <TabsContent value="rewards" className="space-y-3">
-            <div className="glass rounded-lg p-3 space-y-2 max-w-xl">
-              <h2 className="font-semibold">Grant Rewards</h2>
-              <Select value={rewardUserId} onValueChange={setRewardUserId}>
-                <SelectTrigger><SelectValue placeholder="Select user" /></SelectTrigger>
-                <SelectContent>{users.map((item) => <SelectItem key={item.id} value={item.id}>{item.username || item.id}</SelectItem>)}</SelectContent>
-              </Select>
-              <div className="grid grid-cols-2 gap-2">
-                <Input type="number" min="0" value={rewardXp} onChange={(event) => setRewardXp(event.target.value)} placeholder="XP" />
-                <Input type="number" min="0" value={rewardBix} onChange={(event) => setRewardBix(event.target.value)} placeholder="BIX" />
+            <div className="grid gap-3 lg:grid-cols-2">
+              <div className="glass rounded-lg p-3 space-y-2">
+                <h2 className="font-semibold">Instant Grant</h2>
+                <Select value={rewardUserId} onValueChange={setRewardUserId}>
+                  <SelectTrigger><SelectValue placeholder="Select user" /></SelectTrigger>
+                  <SelectContent>{users.map((item) => <SelectItem key={item.id} value={item.id}>{item.username || item.id}</SelectItem>)}</SelectContent>
+                </Select>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input type="number" min="0" value={rewardXp} onChange={(event) => setRewardXp(event.target.value)} placeholder="XP" />
+                  <Input type="number" min="0" value={rewardBix} onChange={(event) => setRewardBix(event.target.value)} placeholder="BIX" />
+                </div>
+                <Textarea value={rewardReason} onChange={(event) => setRewardReason(event.target.value)} placeholder="Reason" />
+                <Button onClick={handleGrantRewards} disabled={grantRewardsMutation.isPending}>{grantRewardsMutation.isPending ? "Granting..." : "Grant Reward"}</Button>
               </div>
-              <Textarea value={rewardReason} onChange={(event) => setRewardReason(event.target.value)} placeholder="Reason" />
-              <Button onClick={handleGrantRewards} disabled={grantRewardsMutation.isPending}>{grantRewardsMutation.isPending ? "Granting..." : "Grant Reward"}</Button>
+
+              <div className="glass rounded-lg p-3 space-y-2">
+                <h2 className="font-semibold">Timed Claim Notification</h2>
+                <Select value={claimAudience} onValueChange={(value) => setClaimAudience(value as "selected" | "all")}>
+                  <SelectTrigger><SelectValue placeholder="Audience" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="selected">Selected Users</SelectItem>
+                    <SelectItem value="all">All Users</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Selected users: {selectedUserIds.length.toLocaleString()} | Timeout is required before reward expires.
+                </p>
+                <div className="grid grid-cols-3 gap-2">
+                  <Input type="number" min="0" value={claimRewardXp} onChange={(event) => setClaimRewardXp(event.target.value)} placeholder="XP" />
+                  <Input type="number" min="0" value={claimRewardBix} onChange={(event) => setClaimRewardBix(event.target.value)} placeholder="BIX" />
+                  <Input type="number" min="1" value={claimTimeoutMinutes} onChange={(event) => setClaimTimeoutMinutes(event.target.value)} placeholder="Timeout (min)" />
+                </div>
+                <Textarea value={claimReason} onChange={(event) => setClaimReason(event.target.value)} placeholder="Notification reason" />
+                <Button onClick={handleCreateClaimableRewards} disabled={createClaimableRewardsMutation.isPending}>
+                  {createClaimableRewardsMutation.isPending ? "Sending..." : "Send Claim Notification"}
+                </Button>
+              </div>
             </div>
           </TabsContent>
 

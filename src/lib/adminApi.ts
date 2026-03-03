@@ -132,6 +132,22 @@ type GrantRewardsPayload = {
   description?: string;
 };
 
+type CreateClaimableRewardsPayload = {
+  all_users?: boolean;
+  user_ids?: string[];
+  xp_amount?: number;
+  bix_amount?: number;
+  reason?: string;
+  description?: string;
+  expires_in_seconds?: number;
+};
+
+export type ClaimableRewardsResult = {
+  created_count: number;
+  expires_at: string | null;
+  scope: "all" | "selected";
+};
+
 type CreateActivityPayload = {
   target_user_id: string;
   activity_type: TaskType;
@@ -214,6 +230,12 @@ export async function updateAdminTask(payload: UpsertTaskPayload): Promise<Admin
 export async function grantAdminRewards(payload: GrantRewardsPayload): Promise<AdminUser | null> {
   const response = await callAdminOperation<{ success: boolean; user: AdminUser | null }>("grant_rewards", payload);
   return response.user || null;
+}
+
+export async function createClaimableRewardNotifications(
+  payload: CreateClaimableRewardsPayload,
+): Promise<ClaimableRewardsResult> {
+  return callAdminOperation<ClaimableRewardsResult>("create_claimable_reward_notifications", payload);
 }
 
 export async function listAdminActivities(userId?: string): Promise<AdminActivity[]> {

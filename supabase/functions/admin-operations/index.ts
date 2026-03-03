@@ -67,6 +67,8 @@ Deno.serve(async (req) => {
         return await updateTask(admin, callerId, body);
       case "grant_rewards":
         return await grantRewards(admin, callerId, body);
+      case "create_claimable_reward_notifications":
+        return await createClaimableRewardNotifications(admin, callerId, body);
       case "list_activities":
         return await listActivities(admin, body);
       case "create_activity":
@@ -120,6 +122,14 @@ function asNonNegativeInteger(value: unknown): number | null {
   if (parsed === null) return null;
   if (!Number.isInteger(parsed) || parsed < 0) return null;
   return parsed;
+}
+
+function asStringArray(value: unknown): string[] | null {
+  if (!Array.isArray(value)) return null;
+  const normalized = value
+    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .filter((item) => item.length > 0);
+  return [...new Set(normalized)];
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -532,6 +542,112 @@ async function updateTask(admin: any, adminUserId: string, body: JsonRecord) {
   return respond({ task: data });
 }
 
+async function listAllUserIds(admin: any): Promise<string[]> {
+  const pageSize = 1000;
+  let from = 0;
+  const ids: string[] = [];
+
+  while (true) {
+    const { data, error } = await admin
+      .from("users")
+      .select("id")
+      .order("created_at", { ascending: false })
+      .range(from, from + pageSize - 1);
+
+    if (error) throw new Error(error.message);
+
+    const rows = (data || []) as Array<{ id?: string }>;
+    for (const row of rows) {
+      if (row.id) ids.push(row.id);
+    }
+
+    if (rows.length < pageSize) break;
+    from += pageSize;
+  }
+
+  return [...new Set(ids)];
+}
+
+async function createClaimableRewardNotifications(admin: any, adminUserId: string, body: JsonRecord) {
+  const allUsers = asBoolean(body.all_users) ?? false;
+  const requestedUserIds = asStringArray(body.user_ids);
+
+  const xpAmount = asNonNegativeInteger(body.xp_amount) ?? 0;
+  const bixAmount = asNumber(body.bix_amount) ?? 0;
+  const reason = asNullableString(body.reason);
+  const description = asNullableString(body.description);
+  const expiresInSeconds = clamp(asNonNegativeInteger(body.expires_in_seconds) ?? 3600, 60, 60 * 60 * 24 * 14);
+
+  if (xpAmount <= 0 && bixAmount <= 0) {
+    return respond({ error: "Provide xp_amount and/or bix_amount greater than zero" }, 400);
+  }
+  if (bixAmount < 0) {
+    return respond({ error: "bix_amount must be non-negative" }, 400);
+  }
+
+  let targetUserIds: string[] = [];
+  if (allUsers) {
+    targetUserIds = await listAllUserIds(admin);
+  } else {
+    if (requestedUserIds === null) return respond({ error: "user_ids must be an array of user ids" }, 400);
+    targetUserIds = requestedUserIds;
+  }
+
+  if (targetUserIds.length === 0) {
+    return respond({ error: allUsers ? "No users available" : "Select at least one user" }, 400);
+  }
+
+  const expiresAt = new Date(Date.now() + expiresInSeconds * 1000).toISOString();
+  const rows = targetUserIds.map((userId) => ({
+    user_id: userId,
+    xp_amount: xpAmount,
+    bix_amount: bixAmount,
+    reason: reason || null,
+    description: description || null,
+    status: "pending",
+    expires_at: expiresAt,
+    created_by: adminUserId,
+    metadata: {
+      source: "admin_console",
+      admin_user_id: adminUserId,
+      scope: allUsers ? "all" : "selected",
+    },
+  }));
+
+  const chunkSize = 500;
+  let createdCount = 0;
+
+  for (let index = 0; index < rows.length; index += chunkSize) {
+    const batch = rows.slice(index, index + chunkSize);
+    const { error } = await admin.from("user_reward_notifications").insert(batch);
+    if (error) return respond({ error: error.message }, dbErrorStatus(error));
+    createdCount += batch.length;
+  }
+
+  await insertAudit(
+    admin,
+    adminUserId,
+    "create_claimable_reward_notifications",
+    "user_reward_notifications",
+    null,
+    null,
+    {
+      scope: allUsers ? "all" : "selected",
+      created_count: createdCount,
+      xp_amount: xpAmount,
+      bix_amount: bixAmount,
+      expires_at: expiresAt,
+      reason: reason || null,
+    },
+  );
+
+  return respond({
+    created_count: createdCount,
+    expires_at: expiresAt,
+    scope: allUsers ? "all" : "selected",
+  });
+}
+
 async function grantRewards(admin: any, adminUserId: string, body: JsonRecord) {
   const targetUserId = asString(body.target_user_id);
   if (!targetUserId) return respond({ error: "target_user_id is required" }, 400);
@@ -609,14 +725,16 @@ async function grantRewards(admin: any, adminUserId: string, body: JsonRecord) {
   const activityDescription =
     description ||
     `Admin grant${xpAmount > 0 ? ` +${xpAmount} XP` : ""}${bixAmount > 0 ? ` +${bixAmount} BIX` : ""}`;
+  const activityPoints = xpAmount > 0 ? xpAmount : bixAmount;
+  const activityUnit = xpAmount > 0 ? "xp" : "bix";
 
   const { error: activityError } = await admin.from("activities").insert({
     user_id: targetUserId,
     activity_type: "custom",
-    points_earned: xpAmount,
+    points_earned: activityPoints,
     description: activityDescription,
     metadata: {
-      unit: xpAmount > 0 ? "xp" : "bix",
+      unit: activityUnit,
       source: "admin_console",
       reason,
       awarded_xp: xpAmount,

@@ -16,6 +16,7 @@ import {
   listPlatformSettings,
 } from "@/lib/adminApi";
 import { fetchLeaderboard, type LeaderboardPeriod, type LeaderboardResponse } from "@/lib/leaderboardApi";
+import { listPendingRewardNotifications, type RewardNotification } from "@/lib/rewardNotificationApi";
 import { generateReferralCode } from "@/lib/referrals";
 import { invokeStaking } from "@/lib/stakingApi";
 
@@ -69,6 +70,7 @@ type LoadingState = {
   tasks: boolean;
   claims: boolean;
   rewardTransactions: boolean;
+  rewardNotifications: boolean;
   referralCode: boolean;
   adminStats: boolean;
   adminUsers: boolean;
@@ -91,6 +93,7 @@ type AppDataContextValue = {
   tasks: TaskRow[];
   claims: ClaimRow[];
   rewardTransactions: RewardTransactionRow[];
+  rewardNotifications: RewardNotification[];
   referralCode: string;
   adminStats: AdminDashboardStats | null;
   adminUsers: AdminUser[];
@@ -111,6 +114,7 @@ type AppDataContextValue = {
   refreshTasks: () => Promise<void>;
   refreshClaims: () => Promise<void>;
   refreshRewardTransactions: () => Promise<void>;
+  refreshRewardNotifications: () => Promise<void>;
   refreshReferralCode: () => Promise<void>;
   refreshAdminStats: () => Promise<void>;
   refreshAdminUsers: () => Promise<void>;
@@ -137,6 +141,7 @@ const DEFAULT_LOADING: LoadingState = {
   tasks: false,
   claims: false,
   rewardTransactions: false,
+  rewardNotifications: false,
   referralCode: false,
   adminStats: false,
   adminUsers: false,
@@ -205,6 +210,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   const [tasks, setTasks] = useState<TaskRow[]>([]);
   const [claims, setClaims] = useState<ClaimRow[]>([]);
   const [rewardTransactions, setRewardTransactions] = useState<RewardTransactionRow[]>([]);
+  const [rewardNotifications, setRewardNotifications] = useState<RewardNotification[]>([]);
   const [referralCode, setReferralCode] = useState("");
   const [adminStats, setAdminStats] = useState<AdminDashboardStats | null>(null);
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
@@ -241,6 +247,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     setTasks([]);
     setClaims([]);
     setRewardTransactions([]);
+    setRewardNotifications([]);
     setReferralCode("");
     setLeaderboards({});
   }, []);
@@ -511,6 +518,22 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     });
   }, [runExclusive, sessionUserId, setLoadingFlag]);
 
+  const refreshRewardNotifications = useCallback(async (): Promise<void> => {
+    if (!sessionUserId) {
+      setRewardNotifications([]);
+      return;
+    }
+
+    await runExclusive("refresh-reward-notifications", async () => {
+      setLoadingFlag("rewardNotifications", true);
+      try {
+        setRewardNotifications(await listPendingRewardNotifications());
+      } finally {
+        setLoadingFlag("rewardNotifications", false);
+      }
+    });
+  }, [runExclusive, sessionUserId, setLoadingFlag]);
+
   const refreshReferralCode = useCallback(async (): Promise<void> => {
     if (!sessionUserId) {
       setReferralCode("");
@@ -753,6 +776,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
         refreshTasks(),
         refreshClaims(),
       refreshRewardTransactions(),
+      refreshRewardNotifications(),
       refreshLeaderboard("weekly"),
       refreshLeaderboard("season"),
     ]);
@@ -784,6 +808,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     refreshLeaderboard,
     refreshReferralCode,
     refreshReferrals,
+    refreshRewardNotifications,
     refreshRewardTransactions,
     refreshStakes,
     refreshStakingPlans,
@@ -948,6 +973,10 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
+    const onUserRewardNotifications = () => {
+      void refreshRewardNotifications();
+    };
+
     if (isAdmin) {
       channel
         .on("postgres_changes", { event: "*", schema: "public", table: "users" }, onUsers)
@@ -958,6 +987,11 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
         .on("postgres_changes", { event: "*", schema: "public", table: "referrals" }, onReferrals)
         .on("postgres_changes", { event: "*", schema: "public", table: "claims" }, onClaims)
         .on("postgres_changes", { event: "*", schema: "public", table: "reward_transactions" }, onRewardTransactions)
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "user_reward_notifications" },
+          onUserRewardNotifications,
+        )
         .on("postgres_changes", { event: "*", schema: "public", table: "task_attempts" }, () => {
           void refreshAdminStats();
         })
@@ -1016,6 +1050,11 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
         )
         .on(
           "postgres_changes",
+          { event: "*", schema: "public", table: "user_reward_notifications", filter: `user_id=eq.${sessionUserId}` },
+          onUserRewardNotifications,
+        )
+        .on(
+          "postgres_changes",
           { event: "*", schema: "public", table: "tasks" },
           () => {
             void refreshTasks();
@@ -1040,6 +1079,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     refreshClaims,
     refreshLeaderboard,
     refreshReferrals,
+    refreshRewardNotifications,
     refreshRewardTransactions,
     refreshStakes,
     refreshTasks,
@@ -1060,6 +1100,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     tasks,
     claims,
     rewardTransactions,
+    rewardNotifications,
     referralCode,
     adminStats,
     adminUsers,
@@ -1080,6 +1121,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     refreshTasks,
     refreshClaims,
     refreshRewardTransactions,
+    refreshRewardNotifications,
     refreshReferralCode,
     refreshAdminStats,
     refreshAdminUsers,
@@ -1114,6 +1156,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     refreshAdminUsers,
     refreshAll,
     refreshClaims,
+    refreshRewardNotifications,
     refreshLeaderboard,
     refreshReferralCode,
     refreshReferrals,
@@ -1124,6 +1167,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     refreshUserProfile,
     refreshWallet,
     rewardTransactions,
+    rewardNotifications,
     session,
     signOut,
     stakes,
