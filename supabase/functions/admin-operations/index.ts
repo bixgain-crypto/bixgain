@@ -21,6 +21,18 @@ const TASK_TYPES = new Set([
 ]);
 
 const ACTIVITY_TYPES = TASK_TYPES;
+const URL_PLACEHOLDER_VALUES = new Set([
+  "#",
+  "about:blank",
+  "null",
+  "undefined",
+  "tbd",
+  "coming soon",
+  "coming-soon",
+  "placeholder",
+  "n/a",
+  "none",
+]);
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -115,6 +127,67 @@ function asNumber(value: unknown): number | null {
     if (Number.isFinite(parsed)) return parsed;
   }
   return null;
+}
+
+function hasScheme(value: string): boolean {
+  return /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(value);
+}
+
+function looksUnsafeOrPlaceholderUrl(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  if (URL_PLACEHOLDER_VALUES.has(normalized)) return true;
+  return [
+    "javascript:",
+    "data:",
+    "about:",
+    "file:",
+    "mailto:",
+    "tel:",
+    "chrome:",
+    "chrome-extension:",
+  ].some((prefix) => normalized.startsWith(prefix));
+}
+
+function normalizeHttpsUrl(raw: string, fieldName: string): string {
+  const value = raw.trim();
+  if (value.startsWith("/")) {
+    throw new Error(`${fieldName} must be a full https:// URL`);
+  }
+  if (looksUnsafeOrPlaceholderUrl(value)) {
+    throw new Error(`${fieldName} cannot use a placeholder or unsafe URL`);
+  }
+
+  const withScheme = value.startsWith("www.")
+    ? `https://${value}`
+    : (hasScheme(value) ? value : `https://${value}`);
+
+  let parsed: URL;
+  try {
+    parsed = new URL(withScheme);
+  } catch {
+    throw new Error(`${fieldName} has invalid URL format`);
+  }
+
+  if (parsed.protocol !== "https:") {
+    throw new Error(`${fieldName} must start with https://`);
+  }
+  if (!parsed.hostname) {
+    throw new Error(`${fieldName} is missing a valid host`);
+  }
+
+  return parsed.toString();
+}
+
+function asNormalizedHttpsUrlOrNull(value: unknown, fieldName: string): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "string") throw new Error(`${fieldName} must be a string`);
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return normalizeHttpsUrl(trimmed, fieldName);
+}
+
+function taskTypeRequiresLink(taskType: string | null): boolean {
+  return taskType === "social" || taskType === "task_completion";
 }
 
 function asNonNegativeInteger(value: unknown): number | null {
@@ -394,94 +467,114 @@ async function updateUser(admin: any, adminUserId: string, body: JsonRecord) {
 function buildTaskPatch(body: JsonRecord, mode: "create" | "update"): { patch?: JsonRecord; error?: string } {
   const patch: JsonRecord = {};
 
-  if (mode === "create" || hasOwn(body, "name")) {
-    const name = asString(body.name);
-    if (!name) return { error: "name is required" };
-    patch.name = name;
-  }
-
-  if (hasOwn(body, "description")) {
-    patch.description = asNullableString(body.description);
-  }
-
-  if (mode === "create" || hasOwn(body, "reward_points")) {
-    const rewardPoints = asNumber(body.reward_points);
-    if (rewardPoints === null || rewardPoints < 0) {
-      return { error: "reward_points must be a non-negative number" };
+  try {
+    if (mode === "create" || hasOwn(body, "name")) {
+      const name = asString(body.name);
+      if (!name) return { error: "name is required" };
+      patch.name = name;
     }
-    patch.reward_points = rewardPoints;
-  }
 
-  if (mode === "create" || hasOwn(body, "task_type")) {
-    const taskType = asString(body.task_type) || "custom";
-    if (!TASK_TYPES.has(taskType)) {
-      return { error: "Invalid task_type" };
+    if (hasOwn(body, "description")) {
+      patch.description = asNullableString(body.description);
     }
-    patch.task_type = taskType;
-  }
 
-  if (hasOwn(body, "is_active")) {
-    const isActive = asBoolean(body.is_active);
-    if (isActive === null) return { error: "is_active must be boolean" };
-    patch.is_active = isActive;
-  } else if (mode === "create") {
-    patch.is_active = true;
-  }
-
-  if (hasOwn(body, "required_seconds")) {
-    const requiredSeconds = body.required_seconds === null ? null : asNonNegativeInteger(body.required_seconds);
-    if (requiredSeconds === null && body.required_seconds !== null) {
-      return { error: "required_seconds must be a non-negative integer or null" };
+    if (mode === "create" || hasOwn(body, "reward_points")) {
+      const rewardPoints = asNumber(body.reward_points);
+      if (rewardPoints === null || rewardPoints < 0) {
+        return { error: "reward_points must be a non-negative number" };
+      }
+      patch.reward_points = rewardPoints;
     }
-    patch.required_seconds = requiredSeconds;
-  }
 
-  if (hasOwn(body, "max_attempts")) {
-    const maxAttempts = body.max_attempts === null ? null : asNonNegativeInteger(body.max_attempts);
-    if (maxAttempts === null && body.max_attempts !== null) {
-      return { error: "max_attempts must be a non-negative integer or null" };
+    if (mode === "create" || hasOwn(body, "task_type")) {
+      const taskType = asString(body.task_type) || "custom";
+      if (!TASK_TYPES.has(taskType)) {
+        return { error: "Invalid task_type" };
+      }
+      patch.task_type = taskType;
     }
-    patch.max_attempts = maxAttempts;
-  }
 
-  if (hasOwn(body, "max_completions_per_user")) {
-    const maxCompletions = body.max_completions_per_user === null ? null : asNonNegativeInteger(body.max_completions_per_user);
-    if (maxCompletions === null && body.max_completions_per_user !== null) {
-      return { error: "max_completions_per_user must be a non-negative integer or null" };
+    if (hasOwn(body, "is_active")) {
+      const isActive = asBoolean(body.is_active);
+      if (isActive === null) return { error: "is_active must be boolean" };
+      patch.is_active = isActive;
+    } else if (mode === "create") {
+      patch.is_active = true;
     }
-    patch.max_completions_per_user = maxCompletions;
-  }
 
-  if (hasOwn(body, "total_budget")) {
-    const totalBudget = body.total_budget === null ? null : asNumber(body.total_budget);
-    if (totalBudget === null && body.total_budget !== null) {
-      return { error: "total_budget must be a number or null" };
+    if (hasOwn(body, "required_seconds")) {
+      const requiredSeconds = body.required_seconds === null ? null : asNonNegativeInteger(body.required_seconds);
+      if (requiredSeconds === null && body.required_seconds !== null) {
+        return { error: "required_seconds must be a non-negative integer or null" };
+      }
+      patch.required_seconds = requiredSeconds;
     }
-    patch.total_budget = totalBudget;
-  }
 
-  if (hasOwn(body, "target_url")) {
-    patch.target_url = asNullableString(body.target_url);
-  }
+    if (hasOwn(body, "max_attempts")) {
+      const maxAttempts = body.max_attempts === null ? null : asNonNegativeInteger(body.max_attempts);
+      if (maxAttempts === null && body.max_attempts !== null) {
+        return { error: "max_attempts must be a non-negative integer or null" };
+      }
+      patch.max_attempts = maxAttempts;
+    }
 
-  if (hasOwn(body, "video_url")) {
-    patch.video_url = asNullableString(body.video_url);
-  }
+    if (hasOwn(body, "max_completions_per_user")) {
+      const maxCompletions = body.max_completions_per_user === null ? null : asNonNegativeInteger(body.max_completions_per_user);
+      if (maxCompletions === null && body.max_completions_per_user !== null) {
+        return { error: "max_completions_per_user must be a non-negative integer or null" };
+      }
+      patch.max_completions_per_user = maxCompletions;
+    }
 
-  if (hasOwn(body, "start_date")) {
-    patch.start_date = asNullableString(body.start_date);
-  }
+    if (hasOwn(body, "total_budget")) {
+      const totalBudget = body.total_budget === null ? null : asNumber(body.total_budget);
+      if (totalBudget === null && body.total_budget !== null) {
+        return { error: "total_budget must be a number or null" };
+      }
+      patch.total_budget = totalBudget;
+    }
 
-  if (hasOwn(body, "end_date")) {
-    patch.end_date = asNullableString(body.end_date);
-  }
+    if (hasOwn(body, "target_url")) {
+      patch.target_url = asNormalizedHttpsUrlOrNull(body.target_url, "target_url");
+    }
 
-  if (hasOwn(body, "requirements")) {
-    patch.requirements = (body.requirements as JsonRecord | null) ?? null;
-  }
+    if (hasOwn(body, "video_url")) {
+      patch.video_url = asNormalizedHttpsUrlOrNull(body.video_url, "video_url");
+    }
 
-  if (hasOwn(body, "verification_rules")) {
-    patch.verification_rules = (body.verification_rules as JsonRecord | null) ?? null;
+    if (hasOwn(body, "start_date")) {
+      patch.start_date = asNullableString(body.start_date);
+    }
+
+    if (hasOwn(body, "end_date")) {
+      patch.end_date = asNullableString(body.end_date);
+    }
+
+    if (hasOwn(body, "requirements")) {
+      patch.requirements = (body.requirements as JsonRecord | null) ?? null;
+    }
+
+    if (hasOwn(body, "verification_rules")) {
+      patch.verification_rules = (body.verification_rules as JsonRecord | null) ?? null;
+    }
+
+    if (mode === "create") {
+      const resolvedTaskType = (patch.task_type as string | null) || "custom";
+      const resolvedIsActive = patch.is_active !== false;
+      const hasTaskLink = Boolean(patch.target_url || patch.video_url);
+      if (resolvedIsActive && taskTypeRequiresLink(resolvedTaskType) && !hasTaskLink) {
+        return { error: "Active social/task_completion tasks require target_url or video_url" };
+      }
+      if (resolvedIsActive && taskTypeRequiresLink(resolvedTaskType)) {
+        const requiredSeconds = typeof patch.required_seconds === "number" ? patch.required_seconds : 30;
+        if (!Number.isInteger(requiredSeconds) || requiredSeconds < 30 || requiredSeconds > 3600) {
+          return { error: "required_seconds must be between 30 and 3600 for active social/task_completion tasks" };
+        }
+        patch.required_seconds = requiredSeconds;
+      }
+    }
+  } catch (error: unknown) {
+    return { error: error instanceof Error ? error.message : "Invalid task URL payload" };
   }
 
   if (mode === "update" && Object.keys(patch).length === 0) {
@@ -527,6 +620,35 @@ async function updateTask(admin: any, adminUserId: string, body: JsonRecord) {
 
   const { patch, error: patchError } = buildTaskPatch(body, "update");
   if (patchError || !patch) return respond({ error: patchError || "Invalid task payload" }, 400);
+
+  const { data: currentTask, error: currentTaskError } = await admin
+    .from("tasks")
+    .select("id, task_type, is_active, target_url, video_url, required_seconds")
+    .eq("id", taskId)
+    .maybeSingle();
+  if (currentTaskError) return respond({ error: currentTaskError.message }, dbErrorStatus(currentTaskError));
+  if (!currentTask) return respond({ error: "Task not found" }, 404);
+
+  const mergedTaskType = (patch.task_type as string | undefined) || currentTask.task_type;
+  const mergedIsActive = typeof patch.is_active === "boolean" ? patch.is_active : currentTask.is_active;
+  const mergedTargetUrl = hasOwn(patch, "target_url") ? (patch.target_url as string | null) : currentTask.target_url;
+  const mergedVideoUrl = hasOwn(patch, "video_url") ? (patch.video_url as string | null) : currentTask.video_url;
+  let mergedRequiredSeconds = hasOwn(patch, "required_seconds")
+    ? (patch.required_seconds as number | null)
+    : currentTask.required_seconds;
+  if (mergedIsActive && taskTypeRequiresLink(mergedTaskType) && !mergedTargetUrl && !mergedVideoUrl) {
+    return respond({ error: "Active social/task_completion tasks require target_url or video_url" }, 400);
+  }
+  if (mergedIsActive && taskTypeRequiresLink(mergedTaskType)) {
+    if (
+      !Number.isInteger(Number(mergedRequiredSeconds)) ||
+      Number(mergedRequiredSeconds) < 30 ||
+      Number(mergedRequiredSeconds) > 3600
+    ) {
+      mergedRequiredSeconds = 30;
+    }
+    patch.required_seconds = Number(mergedRequiredSeconds);
+  }
 
   const { data, error } = await admin
     .from("tasks")

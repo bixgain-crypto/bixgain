@@ -8,9 +8,11 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { awardXp } from "@/lib/progressionApi";
 import { formatXp } from "@/lib/progression";
+import { resolveTaskLinkFromFields } from "@/lib/taskLinks";
 import { motion } from "framer-motion";
 import { CheckCircle2, Clock, Target } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 type MissionCategory = "daily" | "weekly" | "referral" | "challenges" | "season";
@@ -34,6 +36,10 @@ type MissionTask = {
   levelRequired: number;
   cooldown: string;
   target: number;
+  requiredSeconds: number;
+  linkUrl: string | null;
+  linkInternal: boolean;
+  linkState: "valid" | "missing" | "invalid";
 };
 
 type JsonRecord = Record<string, unknown>;
@@ -103,8 +109,29 @@ function defaultCooldown(category: MissionCategory): string {
   return "24h";
 }
 
+function clampClaimDelaySeconds(value: unknown): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 30;
+  return Math.max(30, Math.min(3600, Math.floor(parsed)));
+}
+
+function formatDelay(seconds: number): string {
+  const safe = Math.max(0, Math.floor(seconds));
+  const hours = Math.floor(safe / 3600);
+  const minutes = Math.floor((safe % 3600) / 60);
+  const remainder = safe % 60;
+  if (hours > 0) return `${hours}h ${minutes}m ${remainder}s`;
+  if (minutes > 0) return `${minutes}m ${remainder}s`;
+  return `${remainder}s`;
+}
+
 function toMissionTask(task: TaskRow): MissionTask {
   const requirements = asRecord(task.requirements);
+  const resolvedLink = resolveTaskLinkFromFields({
+    target_url: task.target_url,
+    video_url: task.video_url,
+    requirements: task.requirements,
+  });
   const xpReward = Math.max(0, Math.floor(Number(task.reward_points || 0)));
   const category = asCategory(requirements?.category) || TASK_TYPE_CATEGORY_MAP[task.task_type] || "daily";
   const difficulty = asDifficulty(requirements?.difficulty) || inferDifficulty(xpReward);
@@ -116,6 +143,9 @@ function toMissionTask(task: TaskRow): MissionTask {
   const cooldown = typeof rawCooldown === "string" && rawCooldown.trim().length > 0
     ? rawCooldown.trim()
     : defaultCooldown(category);
+  const requiredSeconds = resolvedLink.url
+    ? clampClaimDelaySeconds(task.required_seconds ?? requirements?.required_seconds)
+    : 0;
 
   return {
     id: task.id,
@@ -128,11 +158,16 @@ function toMissionTask(task: TaskRow): MissionTask {
     levelRequired,
     cooldown,
     target,
+    requiredSeconds,
+    linkUrl: resolvedLink.url,
+    linkInternal: resolvedLink.isInternal,
+    linkState: resolvedLink.url ? "valid" : (resolvedLink.reason === "invalid" ? "invalid" : "missing"),
   };
 }
 
 export default function Tasks() {
   const { session, user } = useAuth();
+  const navigate = useNavigate();
   const {
     tasks,
     activities,
@@ -145,6 +180,8 @@ export default function Tasks() {
   } = useAppData();
   const [category, setCategory] = useState<MissionCategory>("daily");
   const [pendingMission, setPendingMission] = useState<string | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const [missionStartedAtMs, setMissionStartedAtMs] = useState<Record<string, number>>({});
 
   const tasksLoading = loading.tasks;
 
@@ -164,6 +201,48 @@ export default function Tasks() {
       })
       .map(toMissionTask);
   }, [tasks]);
+
+  useEffect(() => {
+    setNowMs(Date.now());
+    const timer = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!session?.user?.id) {
+      setMissionStartedAtMs({});
+      return;
+    }
+    const key = `mission-claim-starts:${session.user.id}`;
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (!raw) {
+        setMissionStartedAtMs({});
+        return;
+      }
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      const cleaned = Object.entries(parsed || {}).reduce<Record<string, number>>((acc, [missionId, startedAt]) => {
+        const value = Number(startedAt);
+        if (Number.isFinite(value) && value > 0) {
+          acc[missionId] = value;
+        }
+        return acc;
+      }, {});
+      setMissionStartedAtMs(cleaned);
+    } catch {
+      setMissionStartedAtMs({});
+    }
+  }, [session?.user?.id]);
+
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    const key = `mission-claim-starts:${session.user.id}`;
+    window.localStorage.setItem(key, JSON.stringify(missionStartedAtMs));
+  }, [missionStartedAtMs, session?.user?.id]);
 
   const availableCategories = useMemo(() => {
     const seen = new Set(missionTasks.map((task) => task.category));
@@ -212,6 +291,37 @@ export default function Tasks() {
     return getProgress(mission).completed;
   };
 
+  const getClaimDelayRemainingSeconds = (mission: MissionTask): number => {
+    if (!mission.linkUrl) return 0;
+    const startedAt = missionStartedAtMs[mission.id];
+    if (!startedAt) return mission.requiredSeconds;
+    const elapsed = Math.max(0, Math.floor((nowMs - startedAt) / 1000));
+    return Math.max(0, mission.requiredSeconds - elapsed);
+  };
+
+  const markMissionStarted = (mission: MissionTask) => {
+    if (!mission.linkUrl) return;
+    const startedAt = Date.now();
+    setMissionStartedAtMs((current) => ({ ...current, [mission.id]: startedAt }));
+  };
+
+  const handleOpenMissionLink = (mission: MissionTask) => {
+    if (!mission.linkUrl) {
+      toast.error("This mission does not have a valid link yet.");
+      return;
+    }
+
+    markMissionStarted(mission);
+
+    if (mission.linkInternal) {
+      navigate(mission.linkUrl);
+    } else {
+      window.open(mission.linkUrl, "_blank", "noopener,noreferrer");
+    }
+
+    toast.message(`Claim unlock in ${formatDelay(mission.requiredSeconds)}`);
+  };
+
   const handleCompleteMission = async (mission: MissionTask) => {
     if (!session?.user?.id) return;
 
@@ -236,6 +346,19 @@ export default function Tasks() {
     if (isMissionClaimed(mission)) {
       toast.error("Mission already completed");
       return;
+    }
+
+    if (mission.linkUrl) {
+      const startedAt = missionStartedAtMs[mission.id];
+      if (!startedAt) {
+        toast.error("Open mission link first before claiming.");
+        return;
+      }
+      const remaining = getClaimDelayRemainingSeconds(mission);
+      if (remaining > 0) {
+        toast.error(`Claim pending. Try again in ${formatDelay(remaining)}.`);
+        return;
+      }
     }
 
     setPendingMission(mission.id);
@@ -342,7 +465,16 @@ export default function Tasks() {
                 key={mission.id}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="glass rounded-2xl p-5 space-y-4"
+                className="glass rounded-2xl p-5 space-y-4 cursor-pointer hover:border-primary/40 transition-colors"
+                onClick={() => handleOpenMissionLink(mission)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    handleOpenMissionLink(mission);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -374,6 +506,46 @@ export default function Tasks() {
                   </div>
                 </div>
 
+                <div className="rounded-lg border border-border/60 bg-secondary/25 px-3 py-2 text-sm">
+                  {mission.linkUrl ? (
+                    mission.linkInternal ? (
+                      <Link
+                        to={mission.linkUrl}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          markMissionStarted(mission);
+                        }}
+                        className="text-primary hover:underline"
+                      >
+                        Open mission destination
+                      </Link>
+                    ) : (
+                      <a
+                        href={mission.linkUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          markMissionStarted(mission);
+                        }}
+                        className="text-primary hover:underline break-all"
+                      >
+                        Open mission destination
+                      </a>
+                    )
+                  ) : mission.linkState === "invalid" ? (
+                    <p className="text-warning">Mission link is invalid. Please contact support/admin.</p>
+                  ) : (
+                    <p className="text-muted-foreground">No destination link configured for this mission.</p>
+                  )}
+                </div>
+
+                {mission.linkUrl ? (
+                  <p className="text-xs text-muted-foreground">
+                    Claim delay: {formatDelay(mission.requiredSeconds)} after opening mission link.
+                  </p>
+                ) : null}
+
                 <XpProgressBar value={progress.percent} />
 
                 {claimed ? (
@@ -382,24 +554,48 @@ export default function Tasks() {
                     Mission completed
                   </div>
                 ) : (
-                  <Button
-                    onClick={() => handleCompleteMission(mission)}
-                    disabled={pendingMission === mission.id || referralNeedsProgress}
-                    className="w-full bg-gradient-gold text-primary-foreground font-semibold"
-                  >
-                    {pendingMission === mission.id ? (
-                      <>
-                      <Clock className="h-4 w-4 mr-1.5 animate-spin" />
-                      Submitting...
-                    </>
-                    ) : Number(user?.current_level || 1) < mission.levelRequired ? (
-                      `Reach Level ${mission.levelRequired}`
-                    ) : referralNeedsProgress ? (
-                      `Invite ${mission.target - progress.current} more`
-                    ) : (
-                      "Complete Mission"
-                    )}
-                  </Button>
+                  <div className={`grid gap-2 ${mission.linkUrl ? "sm:grid-cols-2" : "grid-cols-1"}`}>
+                    {mission.linkUrl ? (
+                      <Button
+                        variant="outline"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleOpenMissionLink(mission);
+                        }}
+                        className="w-full"
+                      >
+                        Open Mission
+                      </Button>
+                    ) : null}
+                    <Button
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void handleCompleteMission(mission);
+                      }}
+                      disabled={
+                        pendingMission === mission.id ||
+                        referralNeedsProgress ||
+                        Number(user?.current_level || 1) < mission.levelRequired ||
+                        (mission.linkUrl !== null && getClaimDelayRemainingSeconds(mission) > 0)
+                      }
+                      className="w-full bg-gradient-gold text-primary-foreground font-semibold"
+                    >
+                      {pendingMission === mission.id ? (
+                        <>
+                          <Clock className="h-4 w-4 mr-1.5 animate-spin" />
+                          Submitting...
+                        </>
+                      ) : Number(user?.current_level || 1) < mission.levelRequired ? (
+                        `Reach Level ${mission.levelRequired}`
+                      ) : referralNeedsProgress ? (
+                        `Invite ${mission.target - progress.current} more`
+                      ) : mission.linkUrl && getClaimDelayRemainingSeconds(mission) > 0 ? (
+                        `Pending ${formatDelay(getClaimDelayRemainingSeconds(mission))}`
+                      ) : (
+                        "Claim Reward"
+                      )}
+                    </Button>
+                  </div>
                 )}
               </motion.div>
             );
