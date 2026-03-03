@@ -560,6 +560,8 @@ async function grantRewards(admin: any, adminUserId: string, body: JsonRecord) {
     }
   }
 
+  let nextBixBalance: number | null = null;
+
   if (bixAmount > 0) {
     const { data: existingUser, error: readError } = await admin
       .from("users")
@@ -570,7 +572,7 @@ async function grantRewards(admin: any, adminUserId: string, body: JsonRecord) {
     if (readError) return respond({ error: readError.message }, dbErrorStatus(readError));
     if (!existingUser) return respond({ error: "Target user not found" }, 404);
 
-    const nextBixBalance = Number(existingUser.bix_balance || 0) + bixAmount;
+    nextBixBalance = Number(existingUser.bix_balance || 0) + bixAmount;
     const nextTotalBix = Number(existingUser.total_bix || 0) + bixAmount;
 
     const { error: updateError } = await admin
@@ -582,6 +584,26 @@ async function grantRewards(admin: any, adminUserId: string, body: JsonRecord) {
       .eq("id", targetUserId);
 
     if (updateError) return respond({ error: updateError.message }, dbErrorStatus(updateError));
+
+    const { error: rewardTxError } = await admin
+      .from("reward_transactions")
+      .insert({
+        user_id: targetUserId,
+        transaction_type: "bonus",
+        gross_amount: bixAmount,
+        tax_amount: 0,
+        net_amount: bixAmount,
+        running_balance: nextBixBalance,
+        description: description || reason || "Admin bonus grant",
+        metadata: {
+          source: "admin_console",
+          admin_user_id: adminUserId,
+          xp_amount: xpAmount,
+          bix_amount: bixAmount,
+        },
+      });
+
+    if (rewardTxError) return respond({ error: rewardTxError.message }, dbErrorStatus(rewardTxError));
   }
 
   const activityDescription =

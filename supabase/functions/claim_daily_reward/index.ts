@@ -15,6 +15,20 @@ function isCooldownError(message: string): boolean {
   return message.toLowerCase().includes("daily reward already claimed");
 }
 
+async function ensureAccountCanClaim(admin: any, userId: string): Promise<Response | null> {
+  const { data, error } = await admin
+    .from("profiles")
+    .select("is_active, is_frozen")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) return respond({ error: error.message }, dbErrorStatus(error));
+  if (data?.is_active === false) return respond({ error: "Account not active" }, 403);
+  if (data?.is_frozen === true) return respond({ error: "Account flagged" }, 403);
+
+  return null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -57,6 +71,9 @@ Deno.serve(async (req) => {
         }
       }
     }
+
+    const accountGuard = await ensureAccountCanClaim(admin, targetUserId);
+    if (accountGuard) return accountGuard;
 
     const { data, error } = await admin.rpc("claim_daily_reward", {
       p_user_id: targetUserId,

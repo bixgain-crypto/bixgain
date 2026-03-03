@@ -56,6 +56,11 @@ Deno.serve(async (req) => {
       return respond({ error: "Unauthorized" }, 401);
     }
 
+    const accountGuard = await ensureActiveAccount(supabaseAdmin, user.id);
+    if (accountGuard) {
+      return accountGuard;
+    }
+
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
 
     switch (action) {
@@ -92,6 +97,20 @@ function respond(data: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+async function ensureActiveAccount(admin: any, userId: string): Promise<Response | null> {
+  const { data, error } = await admin
+    .from("profiles")
+    .select("is_active, is_frozen")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) return respond({ error: error.message }, 500);
+  if (data?.is_active === false) return respond({ error: "Account not active" }, 403);
+  if (data?.is_frozen === true) return respond({ error: "Account flagged" }, 403);
+
+  return null;
 }
 
 // ============ Link referral (called after signup) ============

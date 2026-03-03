@@ -34,6 +34,9 @@ Deno.serve(async (req) => {
 
     if (!user) return respond({ error: "Unauthorized" }, 401);
 
+    const accountGuard = await ensureActiveAccount(admin, user.id);
+    if (accountGuard) return accountGuard;
+
     switch (action) {
       case "get_plans":
         return await getPlans(admin);
@@ -65,6 +68,20 @@ function respond(data: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+async function ensureActiveAccount(admin: any, userId: string): Promise<Response | null> {
+  const { data, error } = await admin
+    .from("profiles")
+    .select("is_active, is_frozen")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) return respond({ error: error.message }, 500);
+  if (data?.is_active === false) return respond({ error: "Account not active" }, 403);
+  if (data?.is_frozen === true) return respond({ error: "Account flagged" }, 403);
+
+  return null;
 }
 
 async function readUserBix(admin: any, userId: string) {

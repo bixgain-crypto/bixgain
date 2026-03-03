@@ -20,6 +20,7 @@ import { generateReferralCode } from "@/lib/referrals";
 import { invokeStaking } from "@/lib/stakingApi";
 
 type UserRow = Database["public"]["Tables"]["users"]["Row"];
+type ProfileStatusRow = Pick<Database["public"]["Tables"]["profiles"]["Row"], "is_active" | "is_frozen">;
 type WalletRow = Database["public"]["Tables"]["wallets"]["Row"];
 type StakeRow = Database["public"]["Tables"]["stakes"]["Row"] & {
   staking_plans?: Database["public"]["Tables"]["staking_plans"]["Row"] | null;
@@ -49,6 +50,8 @@ export type CoreUser = {
   level_name: string;
   is_admin: boolean;
   admin_role: string | null;
+  is_active: boolean;
+  is_frozen: boolean;
 };
 
 type NormalizedWallet = WalletRow & {
@@ -155,6 +158,8 @@ function normalizeUser(raw: UserRow | null, session: Session | null): CoreUser |
     ...raw,
     username,
     admin_role: raw.admin_role || "user",
+    is_active: true,
+    is_frozen: false,
   };
 }
 
@@ -271,14 +276,31 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     return runExclusive("refresh-user", async () => {
       setLoadingFlag("user", true);
       try {
-        const { data, error } = await supabase
-          .from("users")
-          .select("id, username, created_at, bix_balance, total_bix, total_xp, converted_xp, current_level, level_name, is_admin, admin_role")
-          .eq("id", sessionUserId)
-          .maybeSingle();
+        const [{ data: userRow, error: userError }, { data: profileRow, error: profileError }] = await Promise.all([
+          supabase
+            .from("users")
+            .select("id, username, created_at, bix_balance, total_bix, total_xp, converted_xp, current_level, level_name, is_admin, admin_role")
+            .eq("id", sessionUserId)
+            .maybeSingle(),
+          supabase
+            .from("profiles")
+            .select("is_active, is_frozen")
+            .eq("user_id", sessionUserId)
+            .maybeSingle(),
+        ]);
 
-        if (error) throw error;
-        const normalized = normalizeUser((data ?? null) as UserRow | null, session);
+        if (userError) throw userError;
+        if (profileError) throw profileError;
+
+        const normalizedBase = normalizeUser((userRow ?? null) as UserRow | null, session);
+        const accountFlags = (profileRow ?? null) as ProfileStatusRow | null;
+        const normalized = normalizedBase
+          ? {
+              ...normalizedBase,
+              is_active: accountFlags?.is_active ?? true,
+              is_frozen: accountFlags?.is_frozen ?? false,
+            }
+          : null;
         setUser(normalized);
         setProfile(
           normalized
@@ -831,6 +853,37 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!sessionUserId) return;
 
+    if (!isAdmin) {
+      clearAdminData();
+      return;
+    }
+
+    void Promise.all([
+      refreshAdminStats(),
+      refreshAdminUsers(),
+      refreshAdminTasks(),
+      refreshAdminActivities(),
+      refreshAdminSettings(),
+      refreshAdminAuditLogs(),
+    ]).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : "Failed to refresh admin data";
+      console.error(message);
+    });
+  }, [
+    clearAdminData,
+    isAdmin,
+    refreshAdminActivities,
+    refreshAdminAuditLogs,
+    refreshAdminSettings,
+    refreshAdminStats,
+    refreshAdminTasks,
+    refreshAdminUsers,
+    sessionUserId,
+  ]);
+
+  useEffect(() => {
+    if (!sessionUserId) return;
+
     const channelName = `app-data-${sessionUserId}-${Date.now()}`;
     const channel = supabase.channel(channelName);
 
@@ -840,6 +893,13 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       if (isAdmin) {
         void refreshAdminUsers();
         void refreshAdminStats();
+      }
+    };
+
+    const onProfiles = () => {
+      void refreshUserProfile();
+      if (isAdmin) {
+        void refreshAdminUsers();
       }
     };
 
@@ -891,6 +951,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     if (isAdmin) {
       channel
         .on("postgres_changes", { event: "*", schema: "public", table: "users" }, onUsers)
+        .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, onProfiles)
         .on("postgres_changes", { event: "*", schema: "public", table: "wallets" }, onWallets)
         .on("postgres_changes", { event: "*", schema: "public", table: "stakes" }, onStakes)
         .on("postgres_changes", { event: "*", schema: "public", table: "activities" }, onActivities)
@@ -917,6 +978,11 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
           "postgres_changes",
           { event: "*", schema: "public", table: "users", filter: `id=eq.${sessionUserId}` },
           onUsers,
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "profiles", filter: `user_id=eq.${sessionUserId}` },
+          onProfiles,
         )
         .on(
           "postgres_changes",
