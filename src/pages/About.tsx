@@ -109,9 +109,9 @@ export default function About() {
             How The App Works
           </h1>
           <p className="mt-4 max-w-3xl text-sm text-muted-foreground sm:text-base">
-            Bixgain is a gamified rewards platform where users participate in missions, build XP, earn BIX, and
-            compete on leaderboards. The system combines progression mechanics, daily activity loops, referrals, and
-            staking utilities to keep earning opportunities active.
+            Bixgain is a competitive, gamified rewards platform where users participate in missions, build XP, earn
+            BIX, and compete on leaderboards. The system combines progression mechanics, daily activity loops,
+            referrals, and staking utilities to keep earning opportunities active.
           </p>
         </motion.section>
 
