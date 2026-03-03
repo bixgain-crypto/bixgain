@@ -2,7 +2,7 @@
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowRight, Rocket, Target, Trophy, Wallet } from "lucide-react";
+import { ArrowRight, BookOpenText, Rocket, Target, Trophy, Wallet } from "lucide-react";
 
 const features = [
   {
@@ -33,11 +33,19 @@ export default function Index() {
       <div className="mx-auto w-full max-w-[1440px]">
         <header className="flex items-center justify-between px-6 py-5 sm:px-8">
           <BixLogo size="sm" />
-          <Link to="/auth">
-            <Button variant="outline" size="sm" className="border-primary/40 text-primary hover:bg-primary/10">
-              Sign In
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link to="/about">
+              <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
+                <BookOpenText className="h-4 w-4 mr-1.5" />
+                About
+              </Button>
+            </Link>
+            <Link to="/auth">
+              <Button variant="outline" size="sm" className="border-primary/40 text-primary hover:bg-primary/10">
+                Sign In
+              </Button>
+            </Link>
+          </div>
         </header>
 
         <section className="flex flex-col items-center justify-center px-6 pt-16 pb-20 text-center">
@@ -58,10 +66,15 @@ export default function Index() {
             <p className="mx-auto max-w-2xl text-base sm:text-lg text-muted-foreground">
               XP drives progression, rank defines status, and Bix unlocks power. Build your edge through missions, daily boosts, and leaderboard pressure.
             </p>
-            <div className="flex items-center justify-center gap-4 pt-3">
+            <div className="flex flex-wrap items-center justify-center gap-4 pt-3">
               <Link to="/auth">
                 <Button size="lg" className="bg-gradient-gold font-semibold text-base sm:text-lg px-6 sm:px-8 glow-gold">
                   Enter Arena <ArrowRight className="ml-2 h-5 w-5" />
+                </Button>
+              </Link>
+              <Link to="/about">
+                <Button size="lg" variant="outline" className="border-primary/40 text-primary hover:bg-primary/10">
+                  How It Works
                 </Button>
               </Link>
             </div>
