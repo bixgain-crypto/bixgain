@@ -106,7 +106,7 @@ export default function About() {
             About Bixgain
           </div>
           <h1 className="mt-4 text-3xl font-bold leading-tight sm:text-4xl lg:text-5xl">
-            How The App Works
+            How Bixgain Works
           </h1>
           <p className="mt-4 max-w-3xl text-sm text-muted-foreground sm:text-base">
             Bixgain is a competitive reward ecosystem built around progression and strategy.
