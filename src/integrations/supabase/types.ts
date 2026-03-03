@@ -1728,9 +1728,219 @@ export type Database = {
         Returns: boolean
       }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
+      progression_award_xp: {
+        Args: { p_user_id: string; p_xp_amount: number }
+        Returns: {
+          admin_role: string
+          avatar_url: string | null
+          badge_color: string | null
+          badge_icon: string | null
+          badge_title: string | null
+          bio: string | null
+          bix: number | null
+          bix_balance: number
+          boost_expires_at: string | null
+          converted_xp: number
+          created_at: string | null
+          current_level: number
+          display_name: string | null
+          id: string
+          is_admin: boolean
+          join_date: string | null
+          last_active_date: string | null
+          last_username_change: string | null
+          level: number
+          level_name: string
+          longest_streak: number | null
+          season_xp: number | null
+          streak_count: number | null
+          total_bix: number
+          total_bix_earned: number | null
+          total_xp: number
+          total_xp_earned: number | null
+          username: string
+          weekly_xp: number | null
+          xp: number
+          xp_multiplier: number | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "users"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      progression_convert_xp_to_bix: {
+        Args: { p_user_id: string }
+        Returns: {
+          admin_role: string
+          avatar_url: string | null
+          badge_color: string | null
+          badge_icon: string | null
+          badge_title: string | null
+          bio: string | null
+          bix: number | null
+          bix_balance: number
+          boost_expires_at: string | null
+          converted_xp: number
+          created_at: string | null
+          current_level: number
+          display_name: string | null
+          id: string
+          is_admin: boolean
+          join_date: string | null
+          last_active_date: string | null
+          last_username_change: string | null
+          level: number
+          level_name: string
+          longest_streak: number | null
+          season_xp: number | null
+          streak_count: number | null
+          total_bix: number
+          total_bix_earned: number | null
+          total_xp: number
+          total_xp_earned: number | null
+          username: string
+          weekly_xp: number | null
+          xp: number
+          xp_multiplier: number | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "users"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       progression_ensure_user_row: {
         Args: { p_user_id: string }
         Returns: undefined
+      }
+      progression_recalc_level: {
+        Args: { p_user_id: string }
+        Returns: {
+          admin_role: string
+          avatar_url: string | null
+          badge_color: string | null
+          badge_icon: string | null
+          badge_title: string | null
+          bio: string | null
+          bix: number | null
+          bix_balance: number
+          boost_expires_at: string | null
+          converted_xp: number
+          created_at: string | null
+          current_level: number
+          display_name: string | null
+          id: string
+          is_admin: boolean
+          join_date: string | null
+          last_active_date: string | null
+          last_username_change: string | null
+          level: number
+          level_name: string
+          longest_streak: number | null
+          season_xp: number | null
+          streak_count: number | null
+          total_bix: number
+          total_bix_earned: number | null
+          total_xp: number
+          total_xp_earned: number | null
+          username: string
+          weekly_xp: number | null
+          xp: number
+          xp_multiplier: number | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "users"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      progression_spend_bix: {
+        Args: { p_amount: number; p_user_id: string }
+        Returns: {
+          admin_role: string
+          avatar_url: string | null
+          badge_color: string | null
+          badge_icon: string | null
+          badge_title: string | null
+          bio: string | null
+          bix: number | null
+          bix_balance: number
+          boost_expires_at: string | null
+          converted_xp: number
+          created_at: string | null
+          current_level: number
+          display_name: string | null
+          id: string
+          is_admin: boolean
+          join_date: string | null
+          last_active_date: string | null
+          last_username_change: string | null
+          level: number
+          level_name: string
+          longest_streak: number | null
+          season_xp: number | null
+          streak_count: number | null
+          total_bix: number
+          total_bix_earned: number | null
+          total_xp: number
+          total_xp_earned: number | null
+          username: string
+          weekly_xp: number | null
+          xp: number
+          xp_multiplier: number | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "users"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      progression_spend_xp: {
+        Args: { p_amount: number; p_user_id: string }
+        Returns: {
+          admin_role: string
+          avatar_url: string | null
+          badge_color: string | null
+          badge_icon: string | null
+          badge_title: string | null
+          bio: string | null
+          bix: number | null
+          bix_balance: number
+          boost_expires_at: string | null
+          converted_xp: number
+          created_at: string | null
+          current_level: number
+          display_name: string | null
+          id: string
+          is_admin: boolean
+          join_date: string | null
+          last_active_date: string | null
+          last_username_change: string | null
+          level: number
+          level_name: string
+          longest_streak: number | null
+          season_xp: number | null
+          streak_count: number | null
+          total_bix: number
+          total_bix_earned: number | null
+          total_xp: number
+          total_xp_earned: number | null
+          username: string
+          weekly_xp: number | null
+          xp: number
+          xp_multiplier: number | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "users"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       reject_withdrawal: { Args: { wid: string }; Returns: string }
       request_withdrawal: {

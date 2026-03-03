@@ -10,22 +10,22 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.award_xp]
-verify_jwt = true
+verify_jwt = false
 
 [functions.convert_xp_to_bix]
-verify_jwt = true
+verify_jwt = false
 
 [functions.recalc_level]
-verify_jwt = true
+verify_jwt = false
 
 [functions.spend_bix]
-verify_jwt = true
+verify_jwt = false
 
 [functions.spend_xp]
-verify_jwt = true
+verify_jwt = false
 
 [functions.leaderboard]
 verify_jwt = false
 
 [functions.claim_daily_reward]
-verify_jwt = true
+verify_jwt = false
