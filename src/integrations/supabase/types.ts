@@ -1279,6 +1279,54 @@ export type Database = {
           },
         ]
       }
+      user_reward_notifications: {
+        Row: {
+          bix_amount: number
+          claimed_at: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          expires_at: string
+          id: string
+          metadata: Json | null
+          reason: string | null
+          status: string
+          updated_at: string
+          user_id: string
+          xp_amount: number
+        }
+        Insert: {
+          bix_amount?: number
+          claimed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          expires_at: string
+          id?: string
+          metadata?: Json | null
+          reason?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+          xp_amount?: number
+        }
+        Update: {
+          bix_amount?: number
+          claimed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          expires_at?: string
+          id?: string
+          metadata?: Json | null
+          reason?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+          xp_amount?: number
+        }
+        Relationships: []
+      }
       users: {
         Row: {
           admin_role: string
@@ -1642,6 +1690,10 @@ export type Database = {
       claim_daily_reward:
         | { Args: never; Returns: Json }
         | { Args: { p_user_id: string }; Returns: Json }
+      claim_reward_notification: {
+        Args: { p_notification_id: string }
+        Returns: Json
+      }
       complete_mission: { Args: { mission_uuid: string }; Returns: string }
       convert_xp_to_bix: { Args: { user_id: string }; Returns: undefined }
       create_claim: {
