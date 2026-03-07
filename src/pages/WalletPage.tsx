@@ -1,17 +1,14 @@
 import { AppLayout } from "@/components/AppLayout";
 import { useAppData } from "@/context/AppDataContext";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
+import {
   Wallet as WalletIcon,
   ArrowDownLeft,
   ArrowUpRight,
   Copy,
   Send,
   ShoppingBag,
-  Clock,
-  CheckCircle2,
-  XCircle,
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
@@ -19,9 +16,6 @@ import StakingTab from "@/components/StakingTab";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { useState } from "react";
 import { Link } from "react-router-dom";
 
 export default function WalletPage() {
