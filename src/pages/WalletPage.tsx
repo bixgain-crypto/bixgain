@@ -32,50 +32,6 @@ export default function WalletPage() {
     loading,
     refreshRewardTransactions,
   } = useAppData();
-  const [claimAmount, setClaimAmount] = useState(""); // kept for future use
-
-  if (!session?.user?.id) {
-    return (
-      <AppLayout>
-        <div className="glass rounded-2xl p-8 text-center text-muted-foreground">
-          Sign in to access your wallet.
-        </div>
-      </AppLayout>
-    );
-  }
-
-  const copyAddress = () => {
-    if (wallet?.address) {
-      navigator.clipboard.writeText(wallet.address);
-      toast.success("Address copied!");
-    }
-  };
-
-  const handleClaim = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!session?.user?.id || !wallet?.id) return;
-    const amount = parseFloat(claimAmount);
-    if (isNaN(amount) || amount <= 0) { toast.error("Enter a valid amount"); return; }
-    if (amount > Number(wallet.balance)) { toast.error("Insufficient balance"); return; }
-    const { data, error } = await supabase.rpc("create_claim", {
-      p_amount: amount,
-      p_wallet_id: wallet.id,
-    });
-    if (error) { toast.error(error.message); }
-    else {
-      toast.success("Claim submitted for approval!");
-      setClaimAmount("");
-      await Promise.all([refreshClaims(), refreshRewardTransactions(), refreshAdminStats()]);
-    }
-  };
-
-  const statusConfig = {
-    pending: { icon: Clock, color: "text-warning", bg: "bg-warning/10" },
-    approved: { icon: CheckCircle2, color: "text-success", bg: "bg-success/10" },
-    rejected: { icon: XCircle, color: "text-destructive", bg: "bg-destructive/10" },
-    cancelled: { icon: XCircle, color: "text-muted-foreground", bg: "bg-muted" },
-    processing: { icon: Clock, color: "text-primary", bg: "bg-primary/10" },
-  };
 
   const ComingSoonCard = ({ icon: Icon, title, desc }: { icon: LucideIcon; title: string; desc: string }) => (
     <motion.div
