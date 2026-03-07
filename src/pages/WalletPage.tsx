@@ -195,4 +195,42 @@ export default function WalletPage() {
             </motion.div>
           </TabsContent>
 
+          {/* Send - Coming Soon */}
+          <TabsContent value="send">
+            <ComingSoonCard icon={Send} title="Send BIX" desc="Transfer BIX to friends and other users instantly. Enter a wallet address and send securely." />
+          </TabsContent>
 
+          {/* Receive - Coming Soon */}
+          <TabsContent value="receive">
+            <ComingSoonCard icon={ArrowDownLeft} title="Receive BIX" desc="Share your wallet address or QR code to receive BIX from anyone." />
+          </TabsContent>
+
+          {/* Store */}
+          <TabsContent value="store">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="glass rounded-xl p-8 text-center space-y-4"
+            >
+              <ShoppingBag className="h-12 w-12 text-primary mx-auto" />
+              <h3 className="text-xl font-semibold">BIX Store</h3>
+              <p className="text-muted-foreground">
+                Spend BIX on unlocks, boosts, and season utilities.
+              </p>
+              <Link to="/store">
+                <Button className="bg-gradient-gold text-primary-foreground font-semibold">
+                  Open Store
+                </Button>
+              </Link>
+            </motion.div>
+          </TabsContent>
+
+          {/* Staking */}
+          <TabsContent value="staking">
+            <StakingTab />
+          </TabsContent>
+        </Tabs>
+      </div>
+    </AppLayout>
+  );
+}
