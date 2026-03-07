@@ -33,6 +33,13 @@ export default function WalletPage() {
     refreshRewardTransactions,
   } = useAppData();
 
+  const copyAddress = () => {
+    if (wallet?.address) {
+      navigator.clipboard.writeText(wallet.address);
+      toast.success("Address copied!");
+    }
+  };
+
   const ComingSoonCard = ({ icon: Icon, title, desc }: { icon: LucideIcon; title: string; desc: string }) => (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
