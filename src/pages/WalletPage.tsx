@@ -151,7 +151,6 @@ export default function WalletPage() {
           <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
             <TabsList className="bg-secondary/50 border border-border w-max lg:w-full justify-start">
               <TabsTrigger value="history">History</TabsTrigger>
-              <TabsTrigger value="claim">Claim</TabsTrigger>
               <TabsTrigger value="send">Send</TabsTrigger>
               <TabsTrigger value="receive">Receive</TabsTrigger>
               <TabsTrigger value="store">Store</TabsTrigger>
