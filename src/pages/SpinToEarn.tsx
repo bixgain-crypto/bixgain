@@ -85,7 +85,7 @@ export default function SpinToEarn() {
             <Orbit className="h-8 w-8 text-primary" />
             Daily Boost
           </h1>
-          <p className="mt-1 text-muted-foreground">Boost your progression</p>
+          <p className="mt-1 text-muted-foreground">Boost your progression — spins reset every 3 hours</p>
         </motion.div>
 
         <div className="flex flex-col items-center gap-7 max-w-6xl mx-auto">
