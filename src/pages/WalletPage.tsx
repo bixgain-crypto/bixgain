@@ -29,10 +29,7 @@ export default function WalletPage() {
   const { session, wallet } = useAuth();
   const {
     rewardTransactions: transactions,
-    claims,
     loading,
-    refreshClaims,
-    refreshAdminStats,
     refreshRewardTransactions,
   } = useAppData();
   const [claimAmount, setClaimAmount] = useState("");
