@@ -1,7 +1,6 @@
 import { AppLayout } from "@/components/AppLayout";
 import { useAppData } from "@/context/AppDataContext";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
 import {
   Wallet as WalletIcon,
@@ -10,9 +9,6 @@ import {
   Copy,
   Send,
   ShoppingBag,
-  Clock,
-  CheckCircle2,
-  XCircle,
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
@@ -20,64 +16,21 @@ import StakingTab from "@/components/StakingTab";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { useState } from "react";
 import { Link } from "react-router-dom";
 
 export default function WalletPage() {
   const { session, wallet } = useAuth();
   const {
     rewardTransactions: transactions,
-    claims,
     loading,
-    refreshClaims,
-    refreshAdminStats,
     refreshRewardTransactions,
   } = useAppData();
-  const [claimAmount, setClaimAmount] = useState("");
-
-  if (!session?.user?.id) {
-    return (
-      <AppLayout>
-        <div className="glass rounded-2xl p-8 text-center text-muted-foreground">
-          Sign in to access your wallet.
-        </div>
-      </AppLayout>
-    );
-  }
 
   const copyAddress = () => {
     if (wallet?.address) {
       navigator.clipboard.writeText(wallet.address);
       toast.success("Address copied!");
     }
-  };
-
-  const handleClaim = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!session?.user?.id || !wallet?.id) return;
-    const amount = parseFloat(claimAmount);
-    if (isNaN(amount) || amount <= 0) { toast.error("Enter a valid amount"); return; }
-    if (amount > Number(wallet.balance)) { toast.error("Insufficient balance"); return; }
-    const { data, error } = await supabase.rpc("create_claim", {
-      p_amount: amount,
-      p_wallet_id: wallet.id,
-    });
-    if (error) { toast.error(error.message); }
-    else {
-      toast.success("Claim submitted for approval!");
-      setClaimAmount("");
-      await Promise.all([refreshClaims(), refreshRewardTransactions(), refreshAdminStats()]);
-    }
-  };
-
-  const statusConfig = {
-    pending: { icon: Clock, color: "text-warning", bg: "bg-warning/10" },
-    approved: { icon: CheckCircle2, color: "text-success", bg: "bg-success/10" },
-    rejected: { icon: XCircle, color: "text-destructive", bg: "bg-destructive/10" },
-    cancelled: { icon: XCircle, color: "text-muted-foreground", bg: "bg-muted" },
-    processing: { icon: Clock, color: "text-primary", bg: "bg-primary/10" },
   };
 
   const ComingSoonCard = ({ icon: Icon, title, desc }: { icon: LucideIcon; title: string; desc: string }) => (
@@ -151,7 +104,6 @@ export default function WalletPage() {
           <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
             <TabsList className="bg-secondary/50 border border-border w-max lg:w-full justify-start">
               <TabsTrigger value="history">History</TabsTrigger>
-              <TabsTrigger value="claim">Claim</TabsTrigger>
               <TabsTrigger value="send">Send</TabsTrigger>
               <TabsTrigger value="receive">Receive</TabsTrigger>
               <TabsTrigger value="store">Store</TabsTrigger>
@@ -196,68 +148,6 @@ export default function WalletPage() {
             </motion.div>
           </TabsContent>
 
-          {/* Claim */}
-          <TabsContent value="claim">
-            <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)] items-start">
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass rounded-lg p-6">
-                <h2 className="text-lg font-semibold mb-4">New Claim</h2>
-                <form onSubmit={handleClaim} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Amount (BIX)</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={claimAmount}
-                      onChange={(e) => setClaimAmount(e.target.value)}
-                      placeholder="Enter amount to claim"
-                      className="bg-secondary border-border font-mono"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Available: {Number(wallet?.balance || 0).toLocaleString()} BIX - 5% tax applies
-                    </p>
-                  </div>
-                  <Button type="submit" className="w-full bg-gradient-gold font-semibold">Submit Claim</Button>
-                </form>
-              </motion.div>
-
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass rounded-lg p-6">
-              <h2 className="text-lg font-semibold mb-4">Claim History</h2>
-                {loading.claims ? (
-                  <p className="text-sm text-muted-foreground text-center py-8">Loading claims...</p>
-                ) : claims && claims.length > 0 ? (
-                  <div className="space-y-2">
-                    {claims.map((claim) => {
-                      const config = statusConfig[claim.status as keyof typeof statusConfig];
-                      const StatusIcon = config.icon;
-                      return (
-                        <div key={claim.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-secondary/50 px-4 py-3">
-                          <div className="flex min-w-0 items-center gap-3">
-                            <div className={`rounded-full p-2 ${config.bg}`}>
-                              <StatusIcon className={`h-4 w-4 ${config.color}`} />
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium capitalize">{claim.status}</p>
-                              <p className="text-xs text-muted-foreground">{new Date(claim.created_at).toLocaleDateString()}</p>
-                            </div>
-                          </div>
-                          <div className="text-right ml-auto">
-                            <p className="font-mono text-sm font-semibold">{Number(claim.net_amount).toLocaleString()} BIX</p>
-                            <p className="text-xs text-muted-foreground">
-                              Gross: {Number(claim.amount).toLocaleString()} - Tax: {Number(claim.tax_amount).toLocaleString()}
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground text-center py-8">No claims yet.</p>
-                )}
-              </motion.div>
-            </div>
-          </TabsContent>
-
           {/* Send - Coming Soon */}
           <TabsContent value="send">
             <ComingSoonCard icon={Send} title="Send BIX" desc="Transfer BIX to friends and other users instantly. Enter a wallet address and send securely." />
@@ -297,4 +187,3 @@ export default function WalletPage() {
     </AppLayout>
   );
 }
-
