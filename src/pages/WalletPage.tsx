@@ -32,7 +32,7 @@ export default function WalletPage() {
     loading,
     refreshRewardTransactions,
   } = useAppData();
-  const [claimAmount, setClaimAmount] = useState("");
+  const [claimAmount, setClaimAmount] = useState(""); // kept for future use
 
   if (!session?.user?.id) {
     return (
