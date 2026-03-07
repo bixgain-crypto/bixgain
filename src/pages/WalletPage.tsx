@@ -3,7 +3,6 @@ import { useAppData } from "@/context/AppDataContext";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
-import {
   Wallet as WalletIcon,
   ArrowDownLeft,
   ArrowUpRight,
