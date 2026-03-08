@@ -283,31 +283,15 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     return runExclusive("refresh-user", async () => {
       setLoadingFlag("user", true);
       try {
-        const [{ data: userRow, error: userError }, { data: profileRow, error: profileError }] = await Promise.all([
-          supabase
+        const { data: userRow, error: userError } = await supabase
             .from("users")
             .select("id, username, created_at, bix_balance, total_bix, total_xp, converted_xp, current_level, level_name, is_admin, admin_role, is_active, is_frozen")
             .eq("id", sessionUserId)
-            .maybeSingle(),
-          supabase
-            .from("profiles")
-            .select("is_active, is_frozen")
-            .eq("user_id", sessionUserId)
-            .maybeSingle(),
-        ]);
+            .maybeSingle();
 
         if (userError) throw userError;
-        if (profileError) throw profileError;
 
-        const normalizedBase = normalizeUser((userRow ?? null) as UserRow | null, session);
-        const accountFlags = (profileRow ?? null) as ProfileStatusRow | null;
-        const normalized = normalizedBase
-          ? {
-              ...normalizedBase,
-              is_active: accountFlags?.is_active ?? true,
-              is_frozen: accountFlags?.is_frozen ?? false,
-            }
-          : null;
+        const normalized = normalizeUser((userRow ?? null) as UserRow | null, session);
         setUser(normalized);
         setProfile(
           normalized
