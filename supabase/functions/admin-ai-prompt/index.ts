@@ -136,11 +136,35 @@ Admin prompt: "${prompt.trim()}"`;
                         },
                         payload: {
                           type: "object",
-                          description: "The operation payload matching the operation type",
+                          description: "Operation data. For create_task: {name, description, reward_points, task_type, required_seconds, target_url, video_url, is_active, start_date, end_date}. For grant_rewards: {target_user_id, xp_amount, bix_amount, reason}. For create_claimable_reward_notifications: {all_users, user_ids, xp_amount, bix_amount, reason, expires_in_seconds}. For update_setting: {key, value}. For create_activity: {target_user_id, activity_type, points_earned, description}. For clarification_needed: {message}.",
+                          properties: {
+                            name: { type: "string" },
+                            description: { type: "string" },
+                            reward_points: { type: "number" },
+                            task_type: { type: "string" },
+                            required_seconds: { type: "number" },
+                            target_url: { type: "string" },
+                            video_url: { type: "string" },
+                            is_active: { type: "boolean" },
+                            start_date: { type: "string" },
+                            end_date: { type: "string" },
+                            target_user_id: { type: "string" },
+                            xp_amount: { type: "number" },
+                            bix_amount: { type: "number" },
+                            reason: { type: "string" },
+                            all_users: { type: "boolean" },
+                            user_ids: { type: "array", items: { type: "string" } },
+                            expires_in_seconds: { type: "number" },
+                            key: { type: "string" },
+                            value: { type: "string" },
+                            activity_type: { type: "string" },
+                            points_earned: { type: "number" },
+                            message: { type: "string" },
+                          },
                         },
                         scheduled_at: {
                           type: "string",
-                          description: "ISO 8601 datetime for scheduled execution. Omit for immediate.",
+                          description: "ISO 8601 datetime for FUTURE scheduled execution ONLY. Do NOT set this for immediate operations. Only include if the user explicitly mentions a future date/time.",
                         },
                         summary: {
                           type: "string",
@@ -194,6 +218,8 @@ Admin prompt: "${prompt.trim()}"`;
       return respond({ error: "AI returned invalid response. Please try again." }, 422);
     }
 
+    console.log("AI parsed response:", JSON.stringify(parsed, null, 2));
+
     const operations = parsed.operations || [];
     const overallSummary = parsed.overall_summary || "Parsed admin operations";
 
@@ -209,9 +235,22 @@ Admin prompt: "${prompt.trim()}"`;
 
     // Process operations: immediate vs scheduled
     const results: any[] = [];
+    const now = Date.now();
 
     for (const op of operations) {
-      if (op.scheduled_at) {
+      // Fallback: if payload is empty but fields exist at top level, extract them
+      if (!op.payload || Object.keys(op.payload).length === 0) {
+        const { type: _t, payload: _p, scheduled_at: _s, summary: _sum, ...rest } = op;
+        if (Object.keys(rest).length > 0) {
+          op.payload = rest;
+          console.log("Extracted payload from flat operation:", JSON.stringify(op.payload));
+        }
+      }
+
+      // Treat scheduled_at within 60s of now as immediate
+      const isScheduled = op.scheduled_at && (new Date(op.scheduled_at).getTime() - now > 60_000);
+
+      if (isScheduled) {
         // Schedule for later
         const { error: schedErr } = await admin
           .from("scheduled_admin_tasks")
