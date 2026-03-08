@@ -25,6 +25,7 @@ import { useMutation } from "@tanstack/react-query";
 import { ShieldAlert } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { AdminAiPrompt } from "@/components/AdminAiPrompt";
 
 type TaskFormState = {
   name: string;
@@ -428,7 +429,8 @@ export default function Admin() {
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
-          <TabsList className="w-max sm:w-full grid grid-cols-6 sm:grid-cols-6">
+          <TabsList className="w-max sm:w-full grid grid-cols-7 sm:grid-cols-7">
+            <TabsTrigger value="ai">AI</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="missions">Missions</TabsTrigger>
             <TabsTrigger value="rewards">Rewards</TabsTrigger>
