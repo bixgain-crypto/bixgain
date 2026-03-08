@@ -77,7 +77,6 @@ export default function Auth() {
             body: {
               action: "link_referral",
               referral_code: normalizedReferralCode,
-              new_user_id: signUpData.user.id,
               device_id: getOrCreateDeviceId(),
             },
           });
