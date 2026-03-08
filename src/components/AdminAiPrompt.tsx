@@ -3,7 +3,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, Calendar, CheckCircle2, Clock, Loader2, Send, Sparkles, XCircle } from "lucide-react";
+import { Bot, Calendar, CheckCircle2, Clock, Loader2, Send, Sparkles, Trash2, XCircle } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -60,6 +60,23 @@ export function AdminAiPrompt() {
       return (data || []) as unknown as ScheduledTask[];
     },
     refetchInterval: 30000,
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: async (taskId: string) => {
+      const { error } = await supabase
+        .from("scheduled_admin_tasks" as any)
+        .update({ status: "cancelled", updated_at: new Date().toISOString() } as any)
+        .eq("id", taskId)
+        .eq("status", "pending");
+
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      toast.success("Scheduled task cancelled");
+      queryClient.invalidateQueries({ queryKey: ["admin-scheduled-tasks"] });
+    },
+    onError: (err: Error) => toast.error(err.message),
   });
 
   const aiMutation = useMutation({
@@ -277,6 +294,18 @@ export function AdminAiPrompt() {
                     <p className="text-xs text-destructive mt-1">{task.error_message}</p>
                   )}
                 </div>
+                {task.status === "pending" && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 shrink-0 text-destructive hover:text-destructive"
+                    disabled={cancelMutation.isPending}
+                    onClick={() => cancelMutation.mutate(task.id)}
+                    title="Cancel scheduled task"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
             ))}
           </div>
