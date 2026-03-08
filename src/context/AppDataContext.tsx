@@ -163,8 +163,8 @@ function normalizeUser(raw: UserRow | null, session: Session | null): CoreUser |
     ...raw,
     username,
     admin_role: raw.admin_role || "user",
-    is_active: true,
-    is_frozen: false,
+    is_active: (raw as Record<string, unknown>).is_active !== false,
+    is_frozen: (raw as Record<string, unknown>).is_frozen === true,
   };
 }
 
@@ -286,7 +286,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
         const [{ data: userRow, error: userError }, { data: profileRow, error: profileError }] = await Promise.all([
           supabase
             .from("users")
-            .select("id, username, created_at, bix_balance, total_bix, total_xp, converted_xp, current_level, level_name, is_admin, admin_role")
+            .select("id, username, created_at, bix_balance, total_bix, total_xp, converted_xp, current_level, level_name, is_admin, admin_role, is_active, is_frozen")
             .eq("id", sessionUserId)
             .maybeSingle(),
           supabase

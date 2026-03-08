@@ -4,7 +4,6 @@ import {
   UserCircle2,
   Target,
   Orbit,
-  Zap,
   Trophy,
   ShoppingBag,
   Wallet,
