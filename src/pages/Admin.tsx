@@ -689,3 +689,7 @@ export default function Admin() {
   );
 }
 
+          <TabsContent value="ai">
+            <AdminAiPrompt />
+          </TabsContent>
+
