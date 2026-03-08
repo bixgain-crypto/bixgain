@@ -440,6 +440,10 @@ export default function Admin() {
           </TabsList>
           </div>
 
+          <TabsContent value="ai">
+            <AdminAiPrompt />
+          </TabsContent>
+
           <TabsContent value="users" className="space-y-3">
             <div className="flex flex-wrap gap-2">
               <Input placeholder="Search users" value={userSearch} onChange={(event) => setUserSearch(event.target.value)} />
