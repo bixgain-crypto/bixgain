@@ -1343,7 +1343,9 @@ export type Database = {
           current_level: number
           display_name: string | null
           id: string
+          is_active: boolean
           is_admin: boolean
+          is_frozen: boolean
           join_date: string | null
           last_active_date: string | null
           last_username_change: string | null
@@ -1376,7 +1378,9 @@ export type Database = {
           current_level?: number
           display_name?: string | null
           id: string
+          is_active?: boolean
           is_admin?: boolean
+          is_frozen?: boolean
           join_date?: string | null
           last_active_date?: string | null
           last_username_change?: string | null
@@ -1409,7 +1413,9 @@ export type Database = {
           current_level?: number
           display_name?: string | null
           id?: string
+          is_active?: boolean
           is_admin?: boolean
+          is_frozen?: boolean
           join_date?: string | null
           last_active_date?: string | null
           last_username_change?: string | null
@@ -1651,7 +1657,9 @@ export type Database = {
           current_level: number
           display_name: string | null
           id: string
+          is_active: boolean
           is_admin: boolean
+          is_frozen: boolean
           join_date: string | null
           last_active_date: string | null
           last_username_change: string | null
@@ -1745,7 +1753,9 @@ export type Database = {
           current_level: number
           display_name: string | null
           id: string
+          is_active: boolean
           is_admin: boolean
+          is_frozen: boolean
           join_date: string | null
           last_active_date: string | null
           last_username_change: string | null
@@ -1787,7 +1797,9 @@ export type Database = {
           current_level: number
           display_name: string | null
           id: string
+          is_active: boolean
           is_admin: boolean
+          is_frozen: boolean
           join_date: string | null
           last_active_date: string | null
           last_username_change: string | null
@@ -1833,7 +1845,9 @@ export type Database = {
           current_level: number
           display_name: string | null
           id: string
+          is_active: boolean
           is_admin: boolean
+          is_frozen: boolean
           join_date: string | null
           last_active_date: string | null
           last_username_change: string | null
@@ -1875,7 +1889,9 @@ export type Database = {
           current_level: number
           display_name: string | null
           id: string
+          is_active: boolean
           is_admin: boolean
+          is_frozen: boolean
           join_date: string | null
           last_active_date: string | null
           last_username_change: string | null
@@ -1917,7 +1933,9 @@ export type Database = {
           current_level: number
           display_name: string | null
           id: string
+          is_active: boolean
           is_admin: boolean
+          is_frozen: boolean
           join_date: string | null
           last_active_date: string | null
           last_username_change: string | null

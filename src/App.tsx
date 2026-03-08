@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppDataProvider } from "@/context/AppDataContext";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
@@ -12,7 +13,6 @@ import Profile from "./pages/Profile";
 import Leaderboard from "./pages/Leaderboard";
 import Store from "./pages/Store";
 import WalletPage from "./pages/WalletPage";
-import Boosts from "./pages/Boosts";
 import Admin from "./pages/Admin";
 import SpinToEarn from "./pages/SpinToEarn";
 import Referrals from "./pages/Referrals";
@@ -32,17 +32,17 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/about" element={<About />} />
             <Route path="/auth" element={<Auth />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/profile" element={<Profile />} />
-            <Route path="/missions" element={<Tasks />} />
-            <Route path="/referrals" element={<Referrals />} />
+            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+            <Route path="/missions" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />
+            <Route path="/referrals" element={<ProtectedRoute><Referrals /></ProtectedRoute>} />
             <Route path="/tasks" element={<Navigate to="/missions" replace />} />
-            <Route path="/spin" element={<SpinToEarn />} />
-            <Route path="/boosts" element={<Boosts />} />
-            <Route path="/leaderboard" element={<Leaderboard />} />
-            <Route path="/store" element={<Store />} />
-            <Route path="/wallet" element={<WalletPage />} />
-            <Route path="/admin" element={<Admin />} />
+            <Route path="/spin" element={<ProtectedRoute><SpinToEarn /></ProtectedRoute>} />
+            <Route path="/boosts" element={<Navigate to="/wallet" replace />} />
+            <Route path="/leaderboard" element={<ProtectedRoute><Leaderboard /></ProtectedRoute>} />
+            <Route path="/store" element={<ProtectedRoute><Store /></ProtectedRoute>} />
+            <Route path="/wallet" element={<ProtectedRoute><WalletPage /></ProtectedRoute>} />
+            <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
@@ -52,4 +52,3 @@ const App = () => (
 );
 
 export default App;
-

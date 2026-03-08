@@ -9,7 +9,7 @@ import { Orbit, RotateCw, Sparkles } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
-const WHEEL_LABELS = ["+25 XP", "+50 XP", "+75 XP", "XP Boost", "Mission Reset", "Streak Bonus"];
+const WHEEL_LABELS = ["+25 XP", "+50 XP", "+75 XP", "+25 XP", "+50 XP", "+75 XP"];
 const SEGMENT_ANGLE = 360 / WHEEL_LABELS.length;
 
 type ClaimResult = {

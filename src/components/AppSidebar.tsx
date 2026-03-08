@@ -4,7 +4,6 @@ import {
   UserCircle2,
   Target,
   Orbit,
-  Zap,
   Trophy,
   ShoppingBag,
   Wallet,
@@ -25,7 +24,7 @@ const navItems = [
   { href: "/missions", label: "Missions", icon: Target },
   { href: "/referrals", label: "Referrals", icon: Users },
   { href: "/spin", label: "Daily Boost", icon: Orbit },
-  { href: "/boosts", label: "Boosts", icon: Zap },
+  
   { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
   { href: "/wallet", label: "Wallet", icon: Wallet },
   { href: "/store", label: "Bix Store", icon: ShoppingBag },
