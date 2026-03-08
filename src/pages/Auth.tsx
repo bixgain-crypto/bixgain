@@ -17,6 +17,17 @@ export default function Auth() {
   const [referralCode, setReferralCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [searchParams] = useSearchParams();
+  const [sessionChecked, setSessionChecked] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        window.location.href = "/dashboard";
+      } else {
+        setSessionChecked(true);
+      }
+    });
+  }, []);
 
   useEffect(() => {
     const ref = searchParams.get("ref");
@@ -81,6 +92,14 @@ export default function Auth() {
     }
     setLoading(false);
   };
+
+  if (!sessionChecked) {
+    return (
+      <div className="min-h-screen bg-gradient-dark flex items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-dark p-4">
