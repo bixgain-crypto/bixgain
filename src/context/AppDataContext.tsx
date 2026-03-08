@@ -21,7 +21,7 @@ import { generateReferralCode } from "@/lib/referrals";
 import { invokeStaking } from "@/lib/stakingApi";
 
 type UserRow = Database["public"]["Tables"]["users"]["Row"];
-type ProfileStatusRow = Pick<Database["public"]["Tables"]["profiles"]["Row"], "is_active" | "is_frozen">;
+
 type WalletRow = Database["public"]["Tables"]["wallets"]["Row"];
 type StakeRow = Database["public"]["Tables"]["stakes"]["Row"] & {
   staking_plans?: Database["public"]["Tables"]["staking_plans"]["Row"] | null;
