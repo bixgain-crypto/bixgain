@@ -799,6 +799,51 @@ export type Database = {
           },
         ]
       }
+      scheduled_admin_tasks: {
+        Row: {
+          created_at: string
+          created_by: string
+          error_message: string | null
+          executed_at: string | null
+          id: string
+          operation_payload: Json
+          operation_type: string
+          prompt_text: string | null
+          result: Json | null
+          scheduled_at: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          error_message?: string | null
+          executed_at?: string | null
+          id?: string
+          operation_payload?: Json
+          operation_type: string
+          prompt_text?: string | null
+          result?: Json | null
+          scheduled_at: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          error_message?: string | null
+          executed_at?: string | null
+          id?: string
+          operation_payload?: Json
+          operation_type?: string
+          prompt_text?: string | null
+          result?: Json | null
+          scheduled_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       seasons: {
         Row: {
           created_at: string | null
