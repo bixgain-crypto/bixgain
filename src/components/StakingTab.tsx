@@ -57,7 +57,11 @@ export default function StakingTab() {
   const handleStake = async () => {
     if (!selectedPlan || !stakeAmount) return;
     const amount = parseFloat(stakeAmount);
+    const plan = plans.find((p) => p.id === selectedPlan);
     if (isNaN(amount) || amount <= 0) { toast.error("Enter a valid amount"); return; }
+    if (plan && amount < plan.min_amount) { toast.error(`Minimum stake for ${plan.name} is ${plan.min_amount} BIX`); return; }
+    if (plan?.max_amount && amount > plan.max_amount) { toast.error(`Maximum stake for ${plan.name} is ${plan.max_amount} BIX`); return; }
+    if (amount > Number(wallet?.balance || 0)) { toast.error("Insufficient balance"); return; }
     setLoading(true);
     try {
       await invokeStaking("create_stake", { plan_id: selectedPlan, amount });
