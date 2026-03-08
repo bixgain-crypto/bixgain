@@ -120,11 +120,11 @@ export function AdminAiPrompt() {
       case "executing":
         return <Badge variant="outline" className="text-primary border-primary"><Loader2 className="h-3 w-3 mr-1 animate-spin" />Executing</Badge>;
       case "completed":
-        return <Badge variant="outline" className="text-green-500 border-green-500"><CheckCircle2 className="h-3 w-3 mr-1" />Done</Badge>;
+        return <Badge variant="outline" className="text-accent-foreground border-accent"><CheckCircle2 className="h-3 w-3 mr-1" />Done</Badge>;
       case "executed":
-        return <Badge variant="outline" className="text-green-500 border-green-500"><CheckCircle2 className="h-3 w-3 mr-1" />Executed</Badge>;
+        return <Badge variant="outline" className="text-accent-foreground border-accent"><CheckCircle2 className="h-3 w-3 mr-1" />Executed</Badge>;
       case "scheduled":
-        return <Badge variant="outline" className="text-blue-500 border-blue-500"><Calendar className="h-3 w-3 mr-1" />Scheduled</Badge>;
+        return <Badge variant="outline" className="text-primary border-primary"><Calendar className="h-3 w-3 mr-1" />Scheduled</Badge>;
       case "failed":
       case "schedule_failed":
         return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />Failed</Badge>;

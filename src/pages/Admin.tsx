@@ -118,7 +118,7 @@ export default function Admin() {
     refreshWallet,
   } = useAppData();
 
-  const [activeTab, setActiveTab] = useState("users");
+  const [activeTab, setActiveTab] = useState("ai");
   const [userSearch, setUserSearch] = useState("");
   const [taskSearch, setTaskSearch] = useState("");
   const [createForm, setCreateForm] = useState<TaskFormState>(initialTaskForm);
