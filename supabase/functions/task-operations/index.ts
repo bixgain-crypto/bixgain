@@ -26,9 +26,7 @@ Deno.serve(async (req) => {
 
     const authHeader = req.headers.get("Authorization");
 
-    // Resolve acting user from auth token when present. For the signup
-    // referral flow we may not have a session yet, so allow an
-    // unauthenticated call that passes `new_user_id` for `link_referral`.
+    // Resolve acting user from auth token. All actions require authentication.
     let user: any = null;
 
     if (authHeader) {
@@ -44,12 +42,6 @@ Deno.serve(async (req) => {
       if (!authError && tokenUser) {
         user = tokenUser;
       }
-    }
-
-    // Support unauthenticated linking immediately after signup when the
-    // client provides the newly created user's id.
-    if (!user && action === "link_referral" && body.new_user_id) {
-      user = { id: body.new_user_id };
     }
 
     if (!user) {
