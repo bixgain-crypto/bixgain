@@ -77,7 +77,7 @@ export default function Leaderboard() {
             Leaderboard
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Rank by XP earned across Weekly, Season, and All Time competition.
+            Rank by XP across Weekly, Season, and All Time competition.
           </p>
         </motion.div>
 
@@ -93,13 +93,7 @@ export default function Leaderboard() {
             </p>
           </div>
           <div className="glass rounded-xl p-4">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">
-              {period === "weekly"
-                ? "Your Weekly XP"
-                : period === "season"
-                  ? "Your Season XP"
-                  : "Your Total XP Earned"}
-            </p>
+            <p className="text-xs uppercase tracking-wider text-muted-foreground">Your XP</p>
             <p className="mt-1 text-xl sm:text-2xl font-bold text-gradient-gold">
               {currentUser ? formatXp(currentUser.xp) : "--"}
             </p>
@@ -145,13 +139,7 @@ export default function Leaderboard() {
                       </div>
                       <div className="shrink-0 text-right">
                         <p className="font-mono text-sm text-primary">{formatXp(row.xp)}</p>
-                        <LevelBadge
-                          totalXp={0}
-                          level={row.level}
-                          levelName={row.level_name}
-                          compact
-                          className="mt-1"
-                        />
+                        <LevelBadge totalXp={row.xp} compact className="mt-1" />
                       </div>
                     </div>
                   </div>
@@ -184,22 +172,11 @@ export default function Leaderboard() {
                         <p className="truncate font-medium">{row.username}</p>
                         {row.is_current_user ? <p className="text-xs text-primary">You</p> : null}
                       </div>
-                       <p className="font-mono text-primary">{formatXp(row.xp)}</p>
-                       <div className="flex items-center">
-                         <LevelBadge
-                           totalXp={0}
-                           level={row.level}
-                           levelName={row.level_name}
-                           compact
-                           className="lg:hidden"
-                         />
-                         <LevelBadge
-                           totalXp={0}
-                           level={row.level}
-                           levelName={row.level_name}
-                           className="hidden lg:inline-flex"
-                         />
-                       </div>
+                      <p className="font-mono text-primary">{formatXp(row.xp)}</p>
+                      <div className="flex items-center">
+                        <LevelBadge totalXp={row.xp} compact className="lg:hidden" />
+                        <LevelBadge totalXp={row.xp} className="hidden lg:inline-flex" />
+                      </div>
                     </div>
                   ))}
                 </div>
