@@ -100,9 +100,20 @@ function asObject(value: unknown): JsonRecord {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonRecord) : {};
 }
 
-async function invokeMiniGameRpc(functionName: string, payload: JsonRecord = {}): Promise<JsonRecord> {
-  const { data, error } = await supabase.rpc(functionName as never, payload as never);
-  if (error) throw new Error(error.message);
+async function invokeMiniGameRpc(functionName: string, payload?: JsonRecord): Promise<JsonRecord> {
+  const hasPayload = !!payload && Object.keys(payload).length > 0;
+  const { data, error } = hasPayload
+    ? await supabase.rpc(functionName as never, payload as never)
+    : await supabase.rpc(functionName as never);
+
+  if (error) {
+    const message = String(error.message || "Request failed");
+    const lowered = message.toLowerCase();
+    if (lowered.includes("could not find the function") || lowered.includes("schema cache")) {
+      throw new Error("Mini Games backend is not deployed yet. Apply the latest DB migration and reload.");
+    }
+    throw new Error(message);
+  }
 
   const normalized = asObject(data);
   if (normalized.success === false && typeof normalized.error === "string") {

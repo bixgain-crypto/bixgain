@@ -1,4 +1,8 @@
 import { AppLayout } from "@/components/AppLayout";
+import {
+  BixSnakeArenaGame,
+  type BixSnakeArenaFinishResult,
+} from "@/components/mini-games/BixSnakeArenaGame";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAppData } from "@/context/AppDataContext";
@@ -17,10 +21,6 @@ import { formatXp } from "@/lib/progression";
 import { motion } from "framer-motion";
 import {
   Brain,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  ChevronUp,
   Clock3,
   Gamepad2,
   Gem,
@@ -36,24 +36,24 @@ type GameResultState = {
   rawScore: number;
   estimatedXp: number;
   estimatedBix: number;
+  longestLength: number | null;
   submitted: boolean;
   submitting: boolean;
   verified: MiniGameSubmitResult | null;
 };
 
-type GamePanelProps = {
-  onFinish: (score: number) => void;
+type GameFinishPayload = {
+  rawScore: number;
+  longestLength?: number;
+  estimatedXp?: number;
 };
 
-type GridCell = {
-  x: number;
-  y: number;
+type GamePanelProps = {
+  onFinish: (payload: GameFinishPayload) => void;
 };
 
 const MINI_GAME_LEVEL_REQUIRED = 4;
 const BIX_TAP_DURATION_SECONDS = 10;
-const BIX_SNAKE_SIZE = 14;
-const BIX_SNAKE_TICK_MS = 170;
 
 const statusLabel: Record<MiniGameCatalogItem["status"], string> = {
   active: "Active",
@@ -73,51 +73,17 @@ const iconBySlug: Record<string, ComponentType<{ className?: string }>> = {
   bixmemory: Brain,
 };
 
+const categoryBySlug: Record<string, string> = {
+  bixsnake: "Arcade",
+  bixtap: "Arcade",
+  bixmemory: "Puzzle",
+};
+
 function estimateGameReward(game: MiniGameCatalogItem, rawScore: number): { xp: number; bix: number } {
   const normalizedScore = Math.max(0, Math.min(Math.floor(rawScore), game.max_score));
   const baseXp = Math.min(normalizedScore * game.xp_per_unit, game.max_xp);
   const bix = Number((baseXp / 10000).toFixed(8));
   return { xp: baseXp, bix };
-}
-
-function randomFood(snake: GridCell[]): GridCell {
-  const occupied = new Set(snake.map((part) => `${part.x}:${part.y}`));
-  const freeCells: GridCell[] = [];
-
-  for (let y = 0; y < BIX_SNAKE_SIZE; y += 1) {
-    for (let x = 0; x < BIX_SNAKE_SIZE; x += 1) {
-      const key = `${x}:${y}`;
-      if (!occupied.has(key)) {
-        freeCells.push({ x, y });
-      }
-    }
-  }
-
-  if (freeCells.length === 0) return { x: 0, y: 0 };
-  return freeCells[Math.floor(Math.random() * freeCells.length)];
-}
-
-function sameCell(a: GridCell, b: GridCell): boolean {
-  return a.x === b.x && a.y === b.y;
-}
-
-function nextCellByDirection(head: GridCell, direction: "up" | "down" | "left" | "right"): GridCell {
-  if (direction === "up") return { x: head.x, y: head.y - 1 };
-  if (direction === "down") return { x: head.x, y: head.y + 1 };
-  if (direction === "left") return { x: head.x - 1, y: head.y };
-  return { x: head.x + 1, y: head.y };
-}
-
-function isOppositeDirection(
-  current: "up" | "down" | "left" | "right",
-  next: "up" | "down" | "left" | "right",
-): boolean {
-  return (
-    (current === "up" && next === "down") ||
-    (current === "down" && next === "up") ||
-    (current === "left" && next === "right") ||
-    (current === "right" && next === "left")
-  );
 }
 
 function BixTapGame({ onFinish }: GamePanelProps) {
@@ -130,7 +96,7 @@ function BixTapGame({ onFinish }: GamePanelProps) {
 
     if (timeLeft <= 0) {
       setPhase("finished");
-      onFinish(score);
+      onFinish({ rawScore: score });
       return;
     }
 
@@ -183,176 +149,6 @@ function BixTapGame({ onFinish }: GamePanelProps) {
   );
 }
 
-function BixSnakeGame({ onFinish }: GamePanelProps) {
-  const [phase, setPhase] = useState<"idle" | "running" | "finished">("idle");
-  const [snake, setSnake] = useState<GridCell[]>([
-    { x: 4, y: 7 },
-    { x: 3, y: 7 },
-    { x: 2, y: 7 },
-  ]);
-  const [direction, setDirection] = useState<"up" | "down" | "left" | "right">("right");
-  const [pendingDirection, setPendingDirection] = useState<"up" | "down" | "left" | "right">("right");
-  const [food, setFood] = useState<GridCell>({ x: 9, y: 7 });
-  const [score, setScore] = useState(0);
-
-  const startRound = useCallback(() => {
-    const initialSnake: GridCell[] = [
-      { x: 4, y: 7 },
-      { x: 3, y: 7 },
-      { x: 2, y: 7 },
-    ];
-    setSnake(initialSnake);
-    setDirection("right");
-    setPendingDirection("right");
-    setFood(randomFood(initialSnake));
-    setScore(0);
-    setPhase("running");
-  }, []);
-
-  const finishRound = useCallback(
-    (finalScore: number) => {
-      if (phase === "finished") return;
-      setPhase("finished");
-      onFinish(finalScore);
-    },
-    [onFinish, phase],
-  );
-
-  const queueDirection = useCallback(
-    (next: "up" | "down" | "left" | "right") => {
-      if (phase !== "running") return;
-      if (isOppositeDirection(direction, next) || isOppositeDirection(pendingDirection, next)) return;
-      setPendingDirection(next);
-    },
-    [direction, pendingDirection, phase],
-  );
-
-  useEffect(() => {
-    const handleKey = (event: KeyboardEvent) => {
-      if (event.key === "ArrowUp" || event.key.toLowerCase() === "w") queueDirection("up");
-      if (event.key === "ArrowDown" || event.key.toLowerCase() === "s") queueDirection("down");
-      if (event.key === "ArrowLeft" || event.key.toLowerCase() === "a") queueDirection("left");
-      if (event.key === "ArrowRight" || event.key.toLowerCase() === "d") queueDirection("right");
-    };
-    window.addEventListener("keydown", handleKey);
-    return () => {
-      window.removeEventListener("keydown", handleKey);
-    };
-  }, [queueDirection]);
-
-  useEffect(() => {
-    if (phase !== "running") return;
-
-    const timer = window.setTimeout(() => {
-      const activeDirection = pendingDirection;
-      const head = snake[0];
-      const nextHead = nextCellByDirection(head, activeDirection);
-
-      const hitsWall =
-        nextHead.x < 0 ||
-        nextHead.y < 0 ||
-        nextHead.x >= BIX_SNAKE_SIZE ||
-        nextHead.y >= BIX_SNAKE_SIZE;
-
-      const hitsBody = snake.some((part) => sameCell(part, nextHead));
-
-      if (hitsWall || hitsBody) {
-        finishRound(score);
-        return;
-      }
-
-      const didEat = sameCell(nextHead, food);
-
-      if (didEat) {
-        const grownSnake = [nextHead, ...snake];
-        setSnake(grownSnake);
-        setDirection(activeDirection);
-        setPendingDirection(activeDirection);
-        setScore((current) => current + 1);
-        setFood(randomFood(grownSnake));
-        return;
-      }
-
-      const movedSnake = [nextHead, ...snake.slice(0, snake.length - 1)];
-      setSnake(movedSnake);
-      setDirection(activeDirection);
-      setPendingDirection(activeDirection);
-    }, BIX_SNAKE_TICK_MS);
-
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [phase, snake, direction, pendingDirection, food, score, finishRound]);
-
-  const head = snake[0];
-
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-xl border border-border/60 bg-secondary/35 px-4 py-3">
-          <p className="text-xs uppercase tracking-wider text-muted-foreground">Food Eaten</p>
-          <p className="mt-1 text-2xl font-bold">{score}</p>
-        </div>
-        <div className="rounded-xl border border-border/60 bg-secondary/35 px-4 py-3">
-          <p className="text-xs uppercase tracking-wider text-muted-foreground">Snake Length</p>
-          <p className="mt-1 text-2xl font-bold">{snake.length}</p>
-        </div>
-      </div>
-
-      {phase === "idle" ? (
-        <Button onClick={startRound} className="w-full bg-gradient-gold text-primary-foreground font-semibold">
-          Start BixSnake
-        </Button>
-      ) : null}
-
-      <div className="mx-auto w-full max-w-[26rem] aspect-square rounded-2xl border border-border/70 bg-secondary/25 p-1.5">
-        <div
-          className="grid h-full w-full gap-[2px]"
-          style={{ gridTemplateColumns: `repeat(${BIX_SNAKE_SIZE}, minmax(0, 1fr))` }}
-        >
-          {Array.from({ length: BIX_SNAKE_SIZE * BIX_SNAKE_SIZE }).map((_, index) => {
-            const x = index % BIX_SNAKE_SIZE;
-            const y = Math.floor(index / BIX_SNAKE_SIZE);
-            const isFood = food.x === x && food.y === y;
-            const isSnake = snake.some((part) => part.x === x && part.y === y);
-            const isHead = head.x === x && head.y === y;
-
-            let className = "rounded-[3px] bg-background/40";
-            if (isFood) className = "rounded-[3px] bg-rose-400/90";
-            if (isSnake) className = "rounded-[3px] bg-primary/85";
-            if (isHead) className = "rounded-[3px] bg-gradient-gold";
-
-            return <div key={`${x}-${y}`} className={className} />;
-          })}
-        </div>
-      </div>
-
-      <div className="mx-auto grid w-full max-w-[14rem] grid-cols-3 gap-2">
-        <div />
-        <Button size="icon" variant="outline" onClick={() => queueDirection("up")}>
-          <ChevronUp className="h-4 w-4" />
-        </Button>
-        <div />
-        <Button size="icon" variant="outline" onClick={() => queueDirection("left")}>
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
-        <Button size="icon" variant="outline" onClick={() => queueDirection("down")}>
-          <ChevronDown className="h-4 w-4" />
-        </Button>
-        <Button size="icon" variant="outline" onClick={() => queueDirection("right")}>
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-      </div>
-
-      {phase === "finished" ? (
-        <p className="text-sm text-muted-foreground text-center">
-          Run ended. Submit score to verify reward.
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
 export default function Boosts() {
   const { user } = useAuth();
   const { refreshActivities, refreshUserProfile, refreshWallet } = useAppData();
@@ -375,12 +171,6 @@ export default function Boosts() {
   const loadOverview = useCallback(async () => {
     setLoadingOverview(true);
     try {
-      const bonusResult = await claimMiniGamesDailyLoginBonus();
-      if (!bonusResult.already_claimed && bonusResult.bonus_xp > 0) {
-        toast.success(
-          `Daily login bonus: +${formatXp(bonusResult.bonus_xp)} XP (Day ${bonusResult.streak_count})`,
-        );
-      }
       const next = await getMiniGamesOverview();
       setOverview(next);
     } catch (error: unknown) {
@@ -388,6 +178,25 @@ export default function Boosts() {
       toast.error(message);
     } finally {
       setLoadingOverview(false);
+    }
+
+    try {
+      const bonusResult = await claimMiniGamesDailyLoginBonus();
+      if (!bonusResult.already_claimed && bonusResult.bonus_xp > 0) {
+        toast.success(
+          `Daily login bonus: +${formatXp(bonusResult.bonus_xp)} XP (Day ${bonusResult.streak_count})`,
+        );
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message.toLowerCase() : "";
+      const missingBonusFn =
+        message.includes("mini_game_claim_daily_login_bonus") ||
+        message.includes("schema cache") ||
+        message.includes("could not find the function") ||
+        message.includes("backend is not deployed");
+      if (!missingBonusFn) {
+        toast.error(error instanceof Error ? error.message : "Unable to claim daily login bonus");
+      }
     }
   }, []);
 
@@ -436,16 +245,33 @@ export default function Boosts() {
     }
   };
 
-  const handleGameFinished = (rawScore: number) => {
+  const handleGameFinished = ({ rawScore, longestLength, estimatedXp }: GameFinishPayload) => {
     if (!activeGame) return;
-    const estimated = estimateGameReward(activeGame, rawScore);
+    const estimated = typeof estimatedXp === "number"
+      ? (() => {
+          const clampedXp = Math.max(0, Math.min(Math.floor(estimatedXp), activeGame.max_xp));
+          return {
+            xp: clampedXp,
+            bix: Number((clampedXp / 10000).toFixed(8)),
+          };
+        })()
+      : estimateGameReward(activeGame, rawScore);
     setGameResult({
       rawScore,
       estimatedXp: estimated.xp,
       estimatedBix: estimated.bix,
+      longestLength: typeof longestLength === "number" ? Math.max(0, Math.floor(longestLength)) : null,
       submitted: false,
       submitting: false,
       verified: null,
+    });
+  };
+
+  const handleArenaFinished = (result: BixSnakeArenaFinishResult) => {
+    handleGameFinished({
+      rawScore: result.rawScore,
+      longestLength: result.longestLength,
+      estimatedXp: result.xp,
     });
   };
 
@@ -587,7 +413,9 @@ export default function Boosts() {
             </div>
 
             {activeGame.slug === "bixtap" ? <BixTapGame onFinish={handleGameFinished} /> : null}
-            {activeGame.slug === "bixsnake" ? <BixSnakeGame onFinish={handleGameFinished} /> : null}
+            {activeGame.slug === "bixsnake" ? (
+              <BixSnakeArenaGame onFinish={handleArenaFinished} playerName={user?.username || "Player"} />
+            ) : null}
             {activeGame.slug !== "bixtap" && activeGame.slug !== "bixsnake" ? (
               <div className="rounded-xl border border-border/60 bg-secondary/25 p-4 text-sm text-muted-foreground">
                 This game is connected to the reward system, but an in-app gameplay renderer is not available yet.
@@ -603,7 +431,7 @@ export default function Boosts() {
                   </Badge>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   <div className="rounded-lg border border-border/60 bg-secondary/35 px-3 py-2">
                     <p className="text-xs text-muted-foreground uppercase">Raw Score</p>
                     <p className="mt-1 text-xl font-bold">{gameResult.rawScore}</p>
@@ -615,6 +443,10 @@ export default function Boosts() {
                   <div className="rounded-lg border border-border/60 bg-secondary/35 px-3 py-2">
                     <p className="text-xs text-muted-foreground uppercase">BIX Earned</p>
                     <p className="mt-1 text-xl font-bold">{displayBix.toFixed(4)}</p>
+                  </div>
+                  <div className="rounded-lg border border-border/60 bg-secondary/35 px-3 py-2">
+                    <p className="text-xs text-muted-foreground uppercase">Longest Length</p>
+                    <p className="mt-1 text-xl font-bold">{gameResult.longestLength ?? "--"}</p>
                   </div>
                 </div>
 
@@ -680,6 +512,10 @@ export default function Boosts() {
                   </div>
 
                   <div className="space-y-1 text-sm">
+                    <p className="flex items-center gap-1.5 text-muted-foreground">
+                      <Gamepad2 className="h-3.5 w-3.5 text-primary" />
+                      <span>{`Category: ${categoryBySlug[game.slug] || "Arcade"}`}</span>
+                    </p>
                     <p className="flex items-center gap-1.5">
                       <Zap className="h-3.5 w-3.5 text-primary" />
                       <span>{`Reward Rate: ${game.reward_rate}`}</span>
