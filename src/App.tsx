@@ -18,6 +18,7 @@ import SpinToEarn from "./pages/SpinToEarn";
 import Referrals from "./pages/Referrals";
 import NotFound from "./pages/NotFound";
 import About from "./pages/About";
+import Boosts from "./pages/Boosts";
 
 const queryClient = new QueryClient();
 
@@ -38,7 +39,7 @@ const App = () => (
             <Route path="/referrals" element={<ProtectedRoute><Referrals /></ProtectedRoute>} />
             <Route path="/tasks" element={<Navigate to="/missions" replace />} />
             <Route path="/spin" element={<ProtectedRoute><SpinToEarn /></ProtectedRoute>} />
-            <Route path="/boosts" element={<Navigate to="/wallet" replace />} />
+            <Route path="/boosts" element={<ProtectedRoute><Boosts /></ProtectedRoute>} />
             <Route path="/leaderboard" element={<ProtectedRoute><Leaderboard /></ProtectedRoute>} />
             <Route path="/store" element={<ProtectedRoute><Store /></ProtectedRoute>} />
             <Route path="/wallet" element={<ProtectedRoute><WalletPage /></ProtectedRoute>} />
