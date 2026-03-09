@@ -13,6 +13,7 @@ type UserRow = {
   id: string;
   username: string | null;
   total_xp: number | null;
+  total_xp_earned: number | null;
   weekly_xp: number | null;
   season_xp: number | null;
   current_level: number | null;
@@ -27,7 +28,7 @@ type RankedRow = {
   level_name: string;
 };
 
-const FUNCTION_VERSION = "leaderboard-users-xp-2026-03-09";
+const FUNCTION_VERSION = "leaderboard-xp-earned-2026-03-09";
 
 const SEASON_NAMES = ["Winter", "Spring", "Summer", "Autumn"] as const;
 
@@ -47,7 +48,7 @@ function extractPeriodXp(period: LeaderboardPeriod, row: UserRow): number {
       ? row.weekly_xp
       : period === "season"
         ? row.season_xp
-        : row.total_xp;
+        : row.total_xp_earned; // All-time leaderboard uses lifetime XP earned.
   const numeric = Number(raw ?? 0);
   return Number.isFinite(numeric) ? Math.max(0, Math.floor(numeric)) : 0;
 }
@@ -98,12 +99,13 @@ Deno.serve(async (req) => {
 
     const admin: any = createClient(supabaseUrl, serviceKey);
 
-    // IMPORTANT: We rank using the denormalized counters stored on users
-    // (weekly_xp/season_xp/total_xp). This ensures players still appear even
-    // if their activities table does not include recent rows for the period.
+    // Rank using server-side counters. All-time uses total_xp_earned (lifetime),
+    // while level comes from authoritative current_level/level_name.
     const { data: users, error } = await admin
       .from("users")
-      .select("id, username, total_xp, weekly_xp, season_xp, current_level, level_name");
+      .select(
+        "id, username, total_xp, total_xp_earned, weekly_xp, season_xp, current_level, level_name",
+      );
 
     if (error) {
       return respond({ error: error.message }, 500);
