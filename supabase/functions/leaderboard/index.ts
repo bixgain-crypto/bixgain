@@ -27,6 +27,8 @@ type RankedRow = {
   level_name: string;
 };
 
+const FUNCTION_VERSION = "leaderboard-users-xp-2026-03-09";
+
 const SEASON_NAMES = ["Winter", "Spring", "Summer", "Autumn"] as const;
 
 function getSeasonLabel(now = new Date()): string {
@@ -152,6 +154,7 @@ Deno.serve(async (req) => {
       : null;
 
     return respond({
+      version: FUNCTION_VERSION,
       period,
       generated_at: new Date().toISOString(),
       season_label: getSeasonLabel(),
