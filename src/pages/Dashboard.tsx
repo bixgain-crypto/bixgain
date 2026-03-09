@@ -71,7 +71,6 @@ export default function Dashboard() {
   const { session, user } = useAuth();
   const {
     activities,
-    leaderboards,
     loading,
     rewardNotifications,
     refreshRewardNotifications,
@@ -85,8 +84,6 @@ export default function Dashboard() {
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   const visibleActivities = (activities ?? []).slice(0, 8) as ActivityItem[];
-  const weeklyRank = leaderboards.weekly?.current_user?.rank || null;
-  const seasonRank = leaderboards.season?.current_user?.rank || null;
 
   const totalXp = Number(user?.total_xp || 0);
   const bixBalance = Number(user?.bix_balance || 0);
@@ -170,11 +167,11 @@ export default function Dashboard() {
               </div>
               <div className="rounded-xl border border-border/60 bg-secondary/35 px-4 py-3">
                 <p className="text-xs text-muted-foreground uppercase tracking-wider">Season Rank</p>
-                <p className="mt-1 text-2xl font-bold">{seasonRank ? `#${seasonRank}` : "-"}</p>
+                <p className="mt-1 text-xl font-bold text-gradient-gold">Coming Soon</p>
               </div>
               <div className="rounded-xl border border-border/60 bg-secondary/35 px-4 py-3">
                 <p className="text-xs text-muted-foreground uppercase tracking-wider">Weekly Rank</p>
-                <p className="mt-1 text-2xl font-bold">{weeklyRank ? `#${weeklyRank}` : "-"}</p>
+                <p className="mt-1 text-xl font-bold text-gradient-gold">Coming Soon</p>
               </div>
             </div>
           </div>
