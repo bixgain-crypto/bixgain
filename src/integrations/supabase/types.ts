@@ -463,6 +463,151 @@ export type Database = {
         }
         Relationships: []
       }
+      mini_game_scores: {
+        Row: {
+          base_xp: number
+          bix_earned: number
+          combo_bonus_xp: number
+          created_at: string
+          first_game_bonus_xp: number
+          game_name: string
+          id: string
+          lucky_bonus_bix: number
+          lucky_bonus_xp: number
+          raw_score: number
+          session_id: string | null
+          user_id: string
+          xp_earned: number
+        }
+        Insert: {
+          base_xp?: number
+          bix_earned?: number
+          combo_bonus_xp?: number
+          created_at?: string
+          first_game_bonus_xp?: number
+          game_name: string
+          id?: string
+          lucky_bonus_bix?: number
+          lucky_bonus_xp?: number
+          raw_score?: number
+          session_id?: string | null
+          user_id: string
+          xp_earned?: number
+        }
+        Update: {
+          base_xp?: number
+          bix_earned?: number
+          combo_bonus_xp?: number
+          created_at?: string
+          first_game_bonus_xp?: number
+          game_name?: string
+          id?: string
+          lucky_bonus_bix?: number
+          lucky_bonus_xp?: number
+          raw_score?: number
+          session_id?: string | null
+          user_id?: string
+          xp_earned?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mini_game_scores_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: true
+            referencedRelation: "mini_game_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mini_game_sessions: {
+        Row: {
+          client_meta: Json
+          created_at: string
+          expires_at: string
+          game_slug: string
+          id: string
+          raw_score: number | null
+          started_at: string
+          status: string
+          submitted_at: string | null
+          user_id: string
+        }
+        Insert: {
+          client_meta?: Json
+          created_at?: string
+          expires_at?: string
+          game_slug: string
+          id?: string
+          raw_score?: number | null
+          started_at?: string
+          status?: string
+          submitted_at?: string | null
+          user_id: string
+        }
+        Update: {
+          client_meta?: Json
+          created_at?: string
+          expires_at?: string
+          game_slug?: string
+          id?: string
+          raw_score?: number | null
+          started_at?: string
+          status?: string
+          submitted_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mini_game_sessions_game_slug_fkey"
+            columns: ["game_slug"]
+            isOneToOne: false
+            referencedRelation: "mini_games_catalog"
+            referencedColumns: ["slug"]
+          },
+        ]
+      }
+      mini_games_catalog: {
+        Row: {
+          created_at: string
+          description: string
+          is_enabled: boolean
+          max_score: number
+          max_xp: number
+          name: string
+          reward_rate_text: string
+          slug: string
+          status: string
+          updated_at: string
+          xp_per_unit: number
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          is_enabled?: boolean
+          max_score?: number
+          max_xp?: number
+          name: string
+          reward_rate_text: string
+          slug: string
+          status?: string
+          updated_at?: string
+          xp_per_unit?: number
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          is_enabled?: boolean
+          max_score?: number
+          max_xp?: number
+          name?: string
+          reward_rate_text?: string
+          slug?: string
+          status?: string
+          updated_at?: string
+          xp_per_unit?: number
+        }
+        Relationships: []
+      }
       missions: {
         Row: {
           cooldown_hours: number | null
@@ -1278,6 +1423,42 @@ export type Database = {
           },
         ]
       }
+      user_energy: {
+        Row: {
+          created_at: string
+          energy: number
+          first_game_bonus_date: string | null
+          last_refill: string
+          pending_bix: number
+          streak_count: number
+          streak_last_date: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          energy?: number
+          first_game_bonus_date?: string | null
+          last_refill?: string
+          pending_bix?: number
+          streak_count?: number
+          streak_last_date?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          energy?: number
+          first_game_bonus_date?: string | null
+          last_refill?: string
+          pending_bix?: number
+          streak_count?: number
+          streak_last_date?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_missions: {
         Row: {
           completed_at: string | null
@@ -1781,6 +1962,60 @@ export type Database = {
         Returns: boolean
       }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
+      mini_game_claim_daily_login_bonus: { Args: never; Returns: Json }
+      mini_game_ensure_energy_row: {
+        Args: { p_user_id: string }
+        Returns: {
+          created_at: string
+          energy: number
+          first_game_bonus_date: string | null
+          last_refill: string
+          pending_bix: number
+          streak_count: number
+          streak_last_date: string | null
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "user_energy"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      mini_game_get_overview: { Args: never; Returns: Json }
+      mini_game_get_profile_stats: {
+        Args: { p_user_id?: string }
+        Returns: Json
+      }
+      mini_game_refresh_energy: {
+        Args: { p_user_id: string }
+        Returns: {
+          created_at: string
+          energy: number
+          first_game_bonus_date: string | null
+          last_refill: string
+          pending_bix: number
+          streak_count: number
+          streak_last_date: string | null
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "user_energy"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      mini_game_start_session: {
+        Args: { p_client_meta?: Json; p_game_slug: string }
+        Returns: Json
+      }
+      mini_game_submit_score: {
+        Args: { p_client_meta?: Json; p_score: number; p_session_id: string }
+        Returns: Json
+      }
       progression_award_xp: {
         Args: { p_user_id: string; p_xp_amount: number }
         Returns: {
