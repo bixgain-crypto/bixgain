@@ -1,16 +1,16 @@
 import { Link, useLocation } from "react-router-dom";
 import {
+  Gamepad2,
   LayoutDashboard,
   Target,
   Trophy,
-  Orbit,
   Wallet,
 } from "lucide-react";
 
 const navItems = [
   { href: "/dashboard", label: "Home", icon: LayoutDashboard },
   { href: "/missions", label: "Missions", icon: Target },
-  { href: "/spin", label: "Boost", icon: Orbit },
+  { href: "/boosts", label: "Mini Games", icon: Gamepad2 },
   { href: "/leaderboard", label: "Rank", icon: Trophy },
   { href: "/wallet", label: "Wallet", icon: Wallet },
 ];

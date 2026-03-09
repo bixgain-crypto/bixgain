@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAppData } from "@/context/AppDataContext";
 import { useAuth } from "@/hooks/useAuth";
+import { getMiniGameProfileStats, type MiniGameProfileStats } from "@/lib/miniGamesApi";
 import { changeUsername } from "@/lib/progressionApi";
 import { formatXp, getLevelProgress } from "@/lib/progression";
 import { motion } from "framer-motion";
@@ -18,10 +19,31 @@ export default function Profile() {
   const { refreshUserProfile } = useAppData();
   const [usernameInput, setUsernameInput] = useState("");
   const [saving, setSaving] = useState(false);
+  const [gameStats, setGameStats] = useState<MiniGameProfileStats | null>(null);
+  const [loadingGameStats, setLoadingGameStats] = useState(false);
 
   useEffect(() => {
     setUsernameInput(user?.username || "");
   }, [user?.username]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setGameStats(null);
+      return;
+    }
+
+    setLoadingGameStats(true);
+    void getMiniGameProfileStats(user.id)
+      .then((stats) => {
+        setGameStats(stats);
+      })
+      .catch(() => {
+        setGameStats(null);
+      })
+      .finally(() => {
+        setLoadingGameStats(false);
+      });
+  }, [user?.id]);
 
   const totalXp = Number(user?.total_xp || 0);
   const progress = getLevelProgress(totalXp);
@@ -73,6 +95,60 @@ export default function Profile() {
             <p className="text-xs text-muted-foreground">
               {`XP to Next Level: ${formatXp(progress.xpToNextLevel)} XP`}
             </p>
+          </div>
+        </motion.section>
+
+        {/* Mini game stats */}
+        <motion.section
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.12 }}
+          className="glass rounded-2xl p-5 sm:p-6 space-y-4"
+        >
+          <div>
+            <h2 className="text-base sm:text-lg font-semibold">Mini Game Stats</h2>
+            <p className="text-xs text-muted-foreground mt-1">XP and BIX performance from arcade sessions.</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="rounded-xl border border-border/60 bg-secondary/35 px-4 py-3">
+              <p className="text-[10px] sm:text-xs uppercase tracking-wider text-muted-foreground">Total Games</p>
+              <p className="mt-1.5 text-lg sm:text-xl font-semibold">
+                {loadingGameStats ? "--" : Number(gameStats?.total_games_played || 0).toLocaleString()}
+              </p>
+            </div>
+            <div className="rounded-xl border border-border/60 bg-secondary/35 px-4 py-3">
+              <p className="text-[10px] sm:text-xs uppercase tracking-wider text-muted-foreground">XP from Games</p>
+              <p className="mt-1.5 text-lg sm:text-xl font-semibold text-gradient-gold">
+                {loadingGameStats ? "--" : formatXp(gameStats?.total_xp_from_games || 0)}
+              </p>
+            </div>
+            <div className="rounded-xl border border-border/60 bg-secondary/35 px-4 py-3">
+              <p className="text-[10px] sm:text-xs uppercase tracking-wider text-muted-foreground">BIX from Games</p>
+              <p className="mt-1.5 text-lg sm:text-xl font-semibold">
+                {loadingGameStats ? "--" : Number(gameStats?.total_bix_earned_from_games || 0).toFixed(4)}
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border/60 bg-secondary/30 px-4 py-3">
+            <p className="text-xs uppercase tracking-wider text-muted-foreground">Best Score Per Game</p>
+            {loadingGameStats ? (
+              <p className="text-sm text-muted-foreground mt-2">Loading mini game stats...</p>
+            ) : gameStats && Object.keys(gameStats.best_score_per_game).length > 0 ? (
+              <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {Object.entries(gameStats.best_score_per_game)
+                  .sort(([a], [b]) => a.localeCompare(b))
+                  .map(([gameName, score]) => (
+                    <div key={gameName} className="rounded-lg border border-border/50 bg-background/20 px-3 py-2 flex items-center justify-between">
+                      <span className="text-sm font-medium">{gameName}</span>
+                      <span className="text-sm font-mono text-primary">{Number(score).toLocaleString()}</span>
+                    </div>
+                  ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground mt-2">No mini game scores recorded yet.</p>
+            )}
           </div>
         </motion.section>
 

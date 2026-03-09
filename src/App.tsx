@@ -40,6 +40,7 @@ const App = () => (
             <Route path="/tasks" element={<Navigate to="/missions" replace />} />
             <Route path="/spin" element={<ProtectedRoute><SpinToEarn /></ProtectedRoute>} />
             <Route path="/boosts" element={<ProtectedRoute><Boosts /></ProtectedRoute>} />
+            <Route path="/mini-games" element={<Navigate to="/boosts" replace />} />
             <Route path="/leaderboard" element={<ProtectedRoute><Leaderboard /></ProtectedRoute>} />
             <Route path="/store" element={<ProtectedRoute><Store /></ProtectedRoute>} />
             <Route path="/wallet" element={<ProtectedRoute><WalletPage /></ProtectedRoute>} />
