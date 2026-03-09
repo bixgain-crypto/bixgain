@@ -128,7 +128,7 @@ export default function SpinToEarn() {
                   const textY = 160 + 104 * Math.sin(midRad);
 
                   return (
-                    <g key={label}>
+                    <g key={index}>
                       <path
                         d={`M 160 160 L ${x1} ${y1} A 145 145 0 0 1 ${x2} ${y2} Z`}
                         fill={segmentColors[index]}
