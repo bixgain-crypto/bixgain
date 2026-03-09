@@ -1,191 +1,108 @@
 import { AppLayout } from "@/components/AppLayout";
-import { LevelBadge } from "@/components/LevelBadge";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAppData } from "@/context/AppDataContext";
-import { useAuth } from "@/hooks/useAuth";
-import {
-  LeaderboardEntry,
-  LeaderboardPeriod,
-  LeaderboardResponse,
-} from "@/lib/leaderboardApi";
-import { formatXp } from "@/lib/progression";
+import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { Crown, Medal, Trophy } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Crown, Medal, Sparkles, Timer, Trophy } from "lucide-react";
+import { Link } from "react-router-dom";
 
-function buildRows(data: LeaderboardResponse | undefined): LeaderboardEntry[] {
-  if (!data) return [];
-  return data.current_user && !data.top.some((row) => row.user_id === data.current_user!.user_id)
-    ? [...data.top, data.current_user]
-    : data.top;
-}
-
-function getCurrentUser(
-  data: LeaderboardResponse | undefined,
-  rows: LeaderboardEntry[],
-): LeaderboardEntry | null {
-  if (data?.current_user) return data.current_user;
-  return rows.find((row) => row.is_current_user) || null;
-}
-
-function formatGeneratedAt(value: string | undefined): string {
-  if (!value) return "--";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "--";
-  return date.toLocaleString();
-}
-
-function rankClass(rank: number): string {
-  if (rank === 1) return "bg-warning/15 text-warning border-warning/30";
-  if (rank === 2) return "bg-secondary text-foreground border-border";
-  if (rank === 3) return "bg-accent/20 text-accent border-accent/30";
-  return "bg-secondary/35 text-muted-foreground border-border/70";
-}
+const comingSoonTracks = [
+  {
+    icon: Trophy,
+    title: "Weekly Arena",
+    description: "Fast-paced XP race with rapid resets and fresh winners every week.",
+    accentClass: "text-sky-300 bg-sky-500/10 border-sky-500/30",
+  },
+  {
+    icon: Crown,
+    title: "Season Ladder",
+    description: "Long-form competition designed for consistency and strategic progression.",
+    accentClass: "text-amber-300 bg-amber-500/10 border-amber-500/30",
+  },
+  {
+    icon: Medal,
+    title: "All Time Hall",
+    description: "Permanent ranking layer tracking legacy performance across the platform.",
+    accentClass: "text-emerald-300 bg-emerald-500/10 border-emerald-500/30",
+  },
+];
 
 export default function Leaderboard() {
-  const { session } = useAuth();
-  const { leaderboards, refreshLeaderboard, loading } = useAppData();
-  const [period, setPeriod] = useState<LeaderboardPeriod>("weekly");
-
-  useEffect(() => {
-    if (!session?.user?.id) return;
-    void refreshLeaderboard(period);
-  }, [period, refreshLeaderboard, session?.user?.id]);
-
-  const activeData = leaderboards[period];
-  const rows = useMemo(() => buildRows(activeData), [activeData]);
-  const currentUser = useMemo(() => getCurrentUser(activeData, rows), [activeData, rows]);
-  const generatedAt = useMemo(() => formatGeneratedAt(activeData?.generated_at), [activeData?.generated_at]);
-  const totalPlayers = Number(activeData?.total_players ?? rows.length);
-
-  if (!session?.user?.id) {
-    return (
-      <AppLayout>
-        <div className="glass rounded-2xl p-8 text-center text-muted-foreground">
-          Sign in to access leaderboard rankings.
-        </div>
-      </AppLayout>
-    );
-  }
-
   return (
     <AppLayout>
-      <div className="space-y-6">
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold flex items-center gap-2 sm:gap-3">
-            <Trophy className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
-            Leaderboard
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Rank by XP across Weekly, Season, and All Time competition.
+      <div className="space-y-6 lg:space-y-8">
+        <motion.section
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass rounded-3xl p-6 sm:p-8 relative overflow-hidden"
+        >
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.14),transparent_45%),radial-gradient(circle_at_bottom_left,rgba(251,191,36,0.12),transparent_45%)]" />
+
+          <div className="relative space-y-4">
+            <div className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs text-primary">
+              <Sparkles className="h-3.5 w-3.5" />
+              Coming Soon
+            </div>
+
+            <div>
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold leading-tight">
+                Leaderboard is on the way
+              </h1>
+              <p className="mt-2 text-sm sm:text-base text-muted-foreground max-w-2xl">
+                We are polishing the competitive ranking experience to match the rest of the app.
+                Weekly, Seasonal, and All-Time boards will be released together.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="rounded-xl border border-border/60 bg-secondary/30 px-4 py-3">
+                <p className="text-xs uppercase tracking-wider text-muted-foreground">Status</p>
+                <p className="mt-1 font-semibold">In Development</p>
+              </div>
+              <div className="rounded-xl border border-border/60 bg-secondary/30 px-4 py-3">
+                <p className="text-xs uppercase tracking-wider text-muted-foreground">Focus</p>
+                <p className="mt-1 font-semibold">Fair Ranking Logic</p>
+              </div>
+              <div className="rounded-xl border border-border/60 bg-secondary/30 px-4 py-3">
+                <p className="text-xs uppercase tracking-wider text-muted-foreground">Mode</p>
+                <p className="mt-1 font-semibold flex items-center gap-1.5">
+                  <Timer className="h-4 w-4 text-primary" />
+                  Real-time Ready
+                </p>
+              </div>
+            </div>
+          </div>
+        </motion.section>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {comingSoonTracks.map((track, index) => (
+            <motion.div
+              key={track.title}
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05 * index }}
+              className="glass rounded-2xl p-5 space-y-3 border border-border/70"
+            >
+              <div className={`h-11 w-11 rounded-xl border flex items-center justify-center ${track.accentClass}`}>
+                <track.icon className="h-5 w-5" />
+              </div>
+              <h2 className="text-lg font-semibold">{track.title}</h2>
+              <p className="text-sm text-muted-foreground">{track.description}</p>
+            </motion.div>
+          ))}
+        </div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="glass rounded-2xl p-5 flex flex-wrap items-center justify-between gap-3"
+        >
+          <p className="text-sm text-muted-foreground">
+            Keep stacking XP through missions and daily boosts while rankings are being finalized.
           </p>
+          <Link to="/missions">
+            <Button className="bg-gradient-gold text-primary-foreground font-semibold">Go to Missions</Button>
+          </Link>
         </motion.div>
-
-        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-          <div className="glass rounded-xl p-4">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">Total Players</p>
-            <p className="mt-1 text-xl sm:text-2xl font-bold">{totalPlayers.toLocaleString()}</p>
-          </div>
-          <div className="glass rounded-xl p-4">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">Your Rank</p>
-            <p className="mt-1 text-xl sm:text-2xl font-bold">
-              {currentUser ? `#${currentUser.rank.toLocaleString()}` : "--"}
-            </p>
-          </div>
-          <div className="glass rounded-xl p-4">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">Your XP</p>
-            <p className="mt-1 text-xl sm:text-2xl font-bold text-gradient-gold">
-              {currentUser ? formatXp(currentUser.xp) : "--"}
-            </p>
-          </div>
-          <div className="glass rounded-xl p-4">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">Updated</p>
-            <p className="mt-1 text-sm sm:text-base font-medium break-words">{generatedAt}</p>
-          </div>
-        </div>
-
-        <Tabs value={period} onValueChange={(value) => setPeriod(value as LeaderboardPeriod)}>
-          <TabsList className="w-full max-w-xl bg-transparent p-0 grid grid-cols-3 gap-2">
-            <TabsTrigger value="weekly" className="glass rounded-xl px-3 sm:px-6 py-2 text-xs sm:text-sm">Weekly</TabsTrigger>
-            <TabsTrigger value="season" className="glass rounded-xl px-3 sm:px-6 py-2 text-xs sm:text-sm">Season</TabsTrigger>
-            <TabsTrigger value="all_time" className="glass rounded-xl px-3 sm:px-6 py-2 text-xs sm:text-sm">All Time</TabsTrigger>
-          </TabsList>
-        </Tabs>
-
-        <div className="glass rounded-2xl overflow-hidden">
-          {loading.leaderboard && !activeData ? (
-            <div className="p-6 text-sm text-muted-foreground">Loading leaderboard...</div>
-          ) : rows.length > 0 ? (
-            <>
-              <div className="md:hidden divide-y divide-border/50">
-                {rows.map((row) => (
-                  <div
-                    key={row.user_id}
-                    className={`p-3 ${
-                      row.is_current_user ? "bg-primary/10 border-l-2 border-primary" : ""
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-mono ${rankClass(row.rank)}`}>
-                            #{row.rank}
-                          </span>
-                          {row.rank === 1 ? <Crown className="h-3.5 w-3.5 text-warning" /> : null}
-                          {row.rank === 2 || row.rank === 3 ? <Medal className="h-3.5 w-3.5 text-primary" /> : null}
-                        </div>
-                        <p className="mt-1 truncate font-semibold text-sm">{row.username}</p>
-                        {row.is_current_user ? <p className="text-[10px] text-primary">You</p> : null}
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <p className="font-mono text-sm text-primary">{formatXp(row.xp)}</p>
-                        <LevelBadge totalXp={row.xp} compact className="mt-1" />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="hidden md:block">
-                <div className="grid grid-cols-[88px_minmax(0,1fr)_170px_190px] gap-3 px-5 py-3 border-b border-border/60 text-xs uppercase tracking-wider text-muted-foreground">
-                  <span>Rank</span>
-                  <span>User</span>
-                  <span>XP</span>
-                  <span>Level</span>
-                </div>
-                <div className="divide-y divide-border/50">
-                  {rows.map((row) => (
-                    <div
-                      key={row.user_id}
-                      className={`grid grid-cols-[88px_minmax(0,1fr)_170px_190px] gap-3 items-center px-5 py-3 ${
-                        row.is_current_user ? "bg-primary/10 border-l-2 border-primary" : ""
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-mono ${rankClass(row.rank)}`}>
-                          #{row.rank}
-                        </span>
-                        {row.rank === 1 ? <Crown className="h-4 w-4 text-warning" /> : null}
-                        {row.rank === 2 || row.rank === 3 ? <Medal className="h-4 w-4 text-primary" /> : null}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="truncate font-medium">{row.username}</p>
-                        {row.is_current_user ? <p className="text-xs text-primary">You</p> : null}
-                      </div>
-                      <p className="font-mono text-primary">{formatXp(row.xp)}</p>
-                      <div className="flex items-center">
-                        <LevelBadge totalXp={row.xp} compact className="lg:hidden" />
-                        <LevelBadge totalXp={row.xp} className="hidden lg:inline-flex" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="p-6 text-sm text-muted-foreground">No leaderboard data yet.</div>
-          )}
-        </div>
       </div>
     </AppLayout>
   );
