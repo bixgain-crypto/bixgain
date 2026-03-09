@@ -21,7 +21,24 @@ import About from "./pages/About";
 import Boosts from "./pages/Boosts";
 
 const queryClient = new QueryClient();
-...
+
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <AppDataProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+            <Route path="/missions" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />
+            <Route path="/referrals" element={<ProtectedRoute><Referrals /></ProtectedRoute>} />
+            <Route path="/tasks" element={<Navigate to="/missions" replace />} />
+            <Route path="/spin" element={<ProtectedRoute><SpinToEarn /></ProtectedRoute>} />
             <Route path="/boosts" element={<ProtectedRoute><Boosts /></ProtectedRoute>} />
             <Route path="/leaderboard" element={<ProtectedRoute><Leaderboard /></ProtectedRoute>} />
             <Route path="/store" element={<ProtectedRoute><Store /></ProtectedRoute>} />

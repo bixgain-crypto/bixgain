@@ -3,6 +3,7 @@ import { useAppData } from "@/context/AppDataContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -22,7 +23,7 @@ import {
 } from "@/lib/adminApi";
 import { normalizeAdminTaskUrlInput } from "@/lib/taskLinks";
 import { useMutation } from "@tanstack/react-query";
-import { ShieldAlert } from "lucide-react";
+import { ChevronDown, ShieldAlert } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AdminAiPrompt } from "@/components/AdminAiPrompt";
@@ -95,6 +96,31 @@ function taskToForm(task: AdminTask): TaskFormState {
     video_url: task.video_url || "",
     is_active: !!task.is_active,
   };
+}
+
+function AdminFormSection({
+  title,
+  children,
+  defaultOpen = true,
+}: {
+  title: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} className="glass rounded-lg border border-border">
+      <CollapsibleTrigger className="flex w-full items-center justify-between p-3 hover:bg-secondary/30 transition-colors rounded-lg">
+        <h2 className="font-semibold text-sm">{title}</h2>
+        <ChevronDown
+          className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+        />
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="px-3 pb-3 space-y-2">{children}</div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
 }
 
 export default function Admin() {
@@ -504,8 +530,7 @@ export default function Admin() {
 
           <TabsContent value="missions" className="space-y-4">
             <div className="grid gap-3 lg:grid-cols-2">
-              <div className="glass rounded-lg p-3 space-y-2">
-                <h2 className="font-semibold">Create Mission</h2>
+              <AdminFormSection title="Create Mission">
                 <Input value={createForm.name} placeholder="Name" onChange={(event) => setCreateForm((prev) => ({ ...prev, name: event.target.value }))} />
                 <Textarea value={createForm.description} placeholder="Description" onChange={(event) => setCreateForm((prev) => ({ ...prev, description: event.target.value }))} />
                 <Input
@@ -538,10 +563,9 @@ export default function Admin() {
                   <Switch id="create-active" checked={createForm.is_active} onCheckedChange={(checked) => setCreateForm((prev) => ({ ...prev, is_active: checked }))} />
                 </div>
                 <Button onClick={handleCreateTask} disabled={createTaskMutation.isPending}>{createTaskMutation.isPending ? "Creating..." : "Create Mission"}</Button>
-              </div>
+              </AdminFormSection>
 
-              <div className="glass rounded-lg p-3 space-y-2">
-                <h2 className="font-semibold">Edit Mission</h2>
+              <AdminFormSection title="Edit Mission">
                 <Select value={editTaskId} onValueChange={(value) => { setEditTaskId(value); const task = tasks.find((item) => item.id === value); setEditForm(task ? taskToForm(task) : null); }}>
                   <SelectTrigger><SelectValue placeholder="Select mission" /></SelectTrigger>
                   <SelectContent>{tasks.map((task) => <SelectItem key={task.id} value={task.id}>{task.name}</SelectItem>)}</SelectContent>
@@ -582,7 +606,7 @@ export default function Admin() {
                     <Button onClick={handleSaveTaskEdit} disabled={updateTaskMutation.isPending}>{updateTaskMutation.isPending ? "Saving..." : "Save Mission"}</Button>
                   </>
                 ) : <p className="text-sm text-muted-foreground">Select a mission to edit.</p>}
-              </div>
+              </AdminFormSection>
             </div>
 
             <Input placeholder="Search missions" value={taskSearch} onChange={(event) => setTaskSearch(event.target.value)} />
@@ -602,8 +626,7 @@ export default function Admin() {
 
           <TabsContent value="rewards" className="space-y-3">
             <div className="grid gap-3 lg:grid-cols-2">
-              <div className="glass rounded-lg p-3 space-y-2">
-                <h2 className="font-semibold">Instant Grant</h2>
+              <AdminFormSection title="Instant Grant">
                 <Select value={rewardUserId} onValueChange={setRewardUserId}>
                   <SelectTrigger><SelectValue placeholder="Select user" /></SelectTrigger>
                   <SelectContent>{users.map((item) => <SelectItem key={item.id} value={item.id}>{item.username || item.id}</SelectItem>)}</SelectContent>
@@ -614,10 +637,9 @@ export default function Admin() {
                 </div>
                 <Textarea value={rewardReason} onChange={(event) => setRewardReason(event.target.value)} placeholder="Reason" />
                 <Button onClick={handleGrantRewards} disabled={grantRewardsMutation.isPending}>{grantRewardsMutation.isPending ? "Granting..." : "Grant Reward"}</Button>
-              </div>
+              </AdminFormSection>
 
-              <div className="glass rounded-lg p-3 space-y-2">
-                <h2 className="font-semibold">Timed Claim Notification</h2>
+              <AdminFormSection title="Timed Claim Notification">
                 <Select value={claimAudience} onValueChange={(value) => setClaimAudience(value as "selected" | "all")}>
                   <SelectTrigger><SelectValue placeholder="Audience" /></SelectTrigger>
                   <SelectContent>
@@ -637,13 +659,12 @@ export default function Admin() {
                 <Button onClick={handleCreateClaimableRewards} disabled={createClaimableRewardsMutation.isPending}>
                   {createClaimableRewardsMutation.isPending ? "Sending..." : "Send Claim Notification"}
                 </Button>
-              </div>
+              </AdminFormSection>
             </div>
           </TabsContent>
 
           <TabsContent value="activities" className="space-y-3">
-            <div className="glass rounded-lg p-3 space-y-2 max-w-xl">
-              <h2 className="font-semibold">Create Activity</h2>
+            <AdminFormSection title="Create Activity">
               <Select value={activityUserId} onValueChange={setActivityUserId}>
                 <SelectTrigger><SelectValue placeholder="Select user" /></SelectTrigger>
                 <SelectContent>{users.map((item) => <SelectItem key={item.id} value={item.id}>{item.username || item.id}</SelectItem>)}</SelectContent>
@@ -657,7 +678,7 @@ export default function Admin() {
               </div>
               <Textarea value={activityDescription} onChange={(event) => setActivityDescription(event.target.value)} placeholder="Description" />
               <Button onClick={handleCreateActivity} disabled={createActivityMutation.isPending}>{createActivityMutation.isPending ? "Creating..." : "Create Activity"}</Button>
-            </div>
+            </AdminFormSection>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
               {adminActivities.map((item) => (
                 <div key={item.id} className="glass rounded-lg p-3">
@@ -692,8 +713,3 @@ export default function Admin() {
     </AppLayout>
   );
 }
-
-          <TabsContent value="ai">
-            <AdminAiPrompt />
-          </TabsContent>
-
