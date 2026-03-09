@@ -3,6 +3,7 @@ import { useAppData } from "@/context/AppDataContext";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 import { Gamepad2, Brain, HelpCircle, Dices, Lock, Zap } from "lucide-react";
+import { getLevelTier } from "@/lib/progression";
 
 const GAMES = [
   {
@@ -45,7 +46,13 @@ const GAMES = [
 
 export default function Boosts() {
   const { user } = useAppData();
-  const currentLevel = Number(user?.current_level || 1);
+
+  // Derive level from XP thresholds to stay consistent even if `current_level`
+  // is stale for some accounts.
+  const totalXp = Number(user?.total_xp || 0);
+  const derivedLevel = getLevelTier(totalXp).level;
+  const currentLevel = Math.max(derivedLevel, Number(user?.current_level || 1));
+
   const isUnlocked = currentLevel >= 4;
 
   return (

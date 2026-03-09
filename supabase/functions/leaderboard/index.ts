@@ -13,15 +13,10 @@ type UserRow = {
   id: string;
   username: string | null;
   total_xp: number | null;
+  weekly_xp: number | null;
+  season_xp: number | null;
   current_level: number | null;
   level_name: string | null;
-};
-
-type ActivityRow = Record<string, unknown> & {
-  user_id?: string;
-  created_at?: string;
-  activity_type?: string;
-  metadata?: Record<string, unknown> | null;
 };
 
 type RankedRow = {
@@ -32,56 +27,13 @@ type RankedRow = {
   level_name: string;
 };
 
+const FUNCTION_VERSION = "leaderboard-users-xp-2026-03-09";
+
 const SEASON_NAMES = ["Winter", "Spring", "Summer", "Autumn"] as const;
-
-function getWeekStartISO(now = new Date()): string {
-  const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
-  const day = date.getUTCDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  date.setUTCDate(date.getUTCDate() + diff);
-  return date.toISOString();
-}
-
-function getSeasonStartISO(now = new Date()): string {
-  const quarter = Math.floor(now.getUTCMonth() / 3);
-  return new Date(Date.UTC(now.getUTCFullYear(), quarter * 3, 1, 0, 0, 0, 0)).toISOString();
-}
 
 function getSeasonLabel(now = new Date()): string {
   const quarter = Math.floor(now.getUTCMonth() / 3);
   return `${SEASON_NAMES[quarter]} ${now.getUTCFullYear()}`;
-}
-
-function getActivityUnit(row: Record<string, unknown>): string | null {
-  const metadata = row.metadata;
-  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return null;
-
-  const unit = (metadata as Record<string, unknown>).unit;
-  if (typeof unit !== "string") return null;
-  const normalized = unit.trim().toLowerCase();
-  return normalized.length > 0 ? normalized : null;
-}
-
-function isXpActivity(row: Record<string, unknown>): boolean {
-  const unit = getActivityUnit(row);
-  if (unit === "xp") return true;
-  if (unit === "bix") return false;
-
-  // Backward compatibility for legacy rows written before metadata.unit tagging.
-  const activityType = typeof row.activity_type === "string" ? row.activity_type : "";
-  if (activityType === "staking" || activityType === "referral" || activityType === "task_completion") {
-    return false;
-  }
-
-  return true;
-}
-
-function extractActivityXp(row: Record<string, unknown>): number {
-  if (!isXpActivity(row)) return 0;
-
-  const raw = row.xp_amount ?? row.points_earned ?? row.amount ?? 0;
-  const numeric = Number(raw);
-  return Number.isFinite(numeric) ? Math.max(0, numeric) : 0;
 }
 
 function safeUsername(userId: string, username: string | null | undefined): string {
@@ -89,29 +41,15 @@ function safeUsername(userId: string, username: string | null | undefined): stri
   return `User-${userId.slice(0, 6)}`;
 }
 
-async function fetchPagedActivities(admin: ReturnType<typeof createClient>, sinceIso: string): Promise<ActivityRow[]> {
-  const pageSize = 1000;
-  const rows: ActivityRow[] = [];
-  let from = 0;
-
-  while (true) {
-    const { data, error } = await admin
-      .from("activities")
-      .select("*")
-      .gte("created_at", sinceIso)
-      .order("created_at", { ascending: false })
-      .range(from, from + pageSize - 1);
-
-    if (error) throw error;
-
-    const chunk = (data ?? []) as ActivityRow[];
-    rows.push(...chunk);
-
-    if (chunk.length < pageSize) break;
-    from += pageSize;
-  }
-
-  return rows;
+function extractPeriodXp(period: LeaderboardPeriod, row: UserRow): number {
+  const raw =
+    period === "weekly"
+      ? row.weekly_xp
+      : period === "season"
+        ? row.season_xp
+        : row.total_xp;
+  const numeric = Number(raw ?? 0);
+  return Number.isFinite(numeric) ? Math.max(0, Math.floor(numeric)) : 0;
 }
 
 function sortRank(rows: RankedRow[]): RankedRow[] {
@@ -152,79 +90,49 @@ Deno.serve(async (req) => {
       periodCandidate === "weekly" || periodCandidate === "season" || periodCandidate === "all_time"
         ? periodCandidate
         : "weekly";
+
     const limitCandidate = Number(body.limit ?? 25);
     const limit = Number.isFinite(limitCandidate)
       ? Math.max(1, Math.min(100, Math.floor(limitCandidate)))
       : 25;
 
     const admin: any = createClient(supabaseUrl, serviceKey);
-    const userMap = new Map<string, UserRow>();
-    let ranked: RankedRow[] = [];
 
-    if (period === "all_time") {
-      const { data: users, error } = await admin
-        .from("users")
-        .select("id, username, total_xp, current_level, level_name");
+    // IMPORTANT: We rank using the denormalized counters stored on users
+    // (weekly_xp/season_xp/total_xp). This ensures players still appear even
+    // if their activities table does not include recent rows for the period.
+    const { data: users, error } = await admin
+      .from("users")
+      .select("id, username, total_xp, weekly_xp, season_xp, current_level, level_name");
 
-      if (error) {
-        return respond({ error: error.message }, 500);
-      }
+    if (error) {
+      return respond({ error: error.message }, 500);
+    }
 
-      const rows = (users ?? []) as UserRow[];
-      ranked = sortRank(
-        rows.map((row) => ({
-          user_id: row.id,
-          username: safeUsername(row.id, row.username),
-          xp: Number(row.total_xp || 0),
-          level: Number(row.current_level || 1),
-          level_name: String(row.level_name || "Explorer"),
-        })),
-      );
-    } else {
-      const sinceIso = period === "weekly" ? getWeekStartISO() : getSeasonStartISO();
-      const activities = await fetchPagedActivities(admin, sinceIso);
-      const xpByUser = new Map<string, number>();
+    const rows = (users ?? []) as UserRow[];
 
-      for (const row of activities) {
-        const userId = row.user_id;
-        if (!userId) continue;
-        const xp = extractActivityXp(row);
-        if (xp <= 0) continue;
-        xpByUser.set(userId, (xpByUser.get(userId) || 0) + xp);
-      }
+    let ranked = sortRank(
+      rows.map((row) => ({
+        user_id: row.id,
+        username: safeUsername(row.id, row.username),
+        xp: extractPeriodXp(period, row),
+        level: Number(row.current_level || 1),
+        level_name: String(row.level_name || "Explorer"),
+      })),
+    );
 
-      if (!xpByUser.has(currentUserId)) {
-        xpByUser.set(currentUserId, 0);
-      }
-
-      const userIds = Array.from(xpByUser.keys());
-      if (userIds.length > 0) {
-        const { data: users, error: usersError } = await admin
-          .from("users")
-          .select("id, username, total_xp, current_level, level_name")
-          .in("id", userIds);
-
-        if (usersError) {
-          return respond({ error: usersError.message }, 500);
-        }
-
-        for (const row of (users ?? []) as UserRow[]) {
-          userMap.set(row.id, row);
-        }
-      }
-
-      ranked = sortRank(
-        userIds.map((id) => {
-          const row = userMap.get(id);
-          return {
-            user_id: id,
-            username: safeUsername(id, row?.username),
-            xp: Number(xpByUser.get(id) || 0),
-            level: Number(row?.current_level || 1),
-            level_name: String(row?.level_name || "Explorer"),
-          };
-        }),
-      );
+    // Ensure current user is always represented even if their user row is missing.
+    if (!ranked.some((row) => row.user_id === currentUserId)) {
+      ranked = sortRank([
+        ...ranked,
+        {
+          user_id: currentUserId,
+          username: safeUsername(currentUserId, null),
+          xp: 0,
+          level: 1,
+          level_name: "Explorer",
+        },
+      ]);
     }
 
     const rankByUser = new Map<string, number>();
@@ -246,6 +154,7 @@ Deno.serve(async (req) => {
       : null;
 
     return respond({
+      version: FUNCTION_VERSION,
       period,
       generated_at: new Date().toISOString(),
       season_label: getSeasonLabel(),
@@ -258,4 +167,3 @@ Deno.serve(async (req) => {
     return respond({ error: "An error occurred processing your request" }, 500);
   }
 });
-
