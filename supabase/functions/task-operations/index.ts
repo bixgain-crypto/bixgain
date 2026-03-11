@@ -358,9 +358,9 @@ async function submitProof(
 async function verifyLinkVisit(
   admin: any,
   userId: string,
-  body: { attempt_id: string; visit_token: string; elapsed_seconds: number }
+  body: { attempt_id: string; visit_token: string; elapsed_seconds?: number }
 ) {
-  const { attempt_id, visit_token, elapsed_seconds } = body;
+  const { attempt_id, visit_token } = body;
 
   const { data: attempt } = await admin
     .from("task_attempts")
@@ -372,12 +372,15 @@ async function verifyLinkVisit(
 
   if (!attempt) return respond({ error: "Invalid attempt or token" }, 404);
 
+  // Use server-side timing: compare now() against attempt created_at
   const requiredSeconds = attempt.tasks?.required_seconds || 10;
+  const startedAt = new Date(attempt.created_at).getTime();
+  const elapsedSeconds = Math.floor((Date.now() - startedAt) / 1000);
 
-  if (elapsed_seconds < requiredSeconds) {
+  if (elapsedSeconds < requiredSeconds) {
     return respond({
       error: `Must visit for at least ${requiredSeconds} seconds`,
-      remaining: requiredSeconds - elapsed_seconds,
+      remaining: requiredSeconds - elapsedSeconds,
     }, 400);
   }
 
