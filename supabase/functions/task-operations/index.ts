@@ -358,9 +358,9 @@ async function submitProof(
 async function verifyLinkVisit(
   admin: any,
   userId: string,
-  body: { attempt_id: string; visit_token: string; elapsed_seconds: number }
+  body: { attempt_id: string; visit_token: string; elapsed_seconds?: number }
 ) {
-  const { attempt_id, visit_token, elapsed_seconds } = body;
+  const { attempt_id, visit_token } = body;
 
   const { data: attempt } = await admin
     .from("task_attempts")
@@ -372,12 +372,15 @@ async function verifyLinkVisit(
 
   if (!attempt) return respond({ error: "Invalid attempt or token" }, 404);
 
+  // Use server-side timing: compare now() against attempt created_at
   const requiredSeconds = attempt.tasks?.required_seconds || 10;
+  const startedAt = new Date(attempt.created_at).getTime();
+  const elapsedSeconds = Math.floor((Date.now() - startedAt) / 1000);
 
-  if (elapsed_seconds < requiredSeconds) {
+  if (elapsedSeconds < requiredSeconds) {
     return respond({
       error: `Must visit for at least ${requiredSeconds} seconds`,
-      remaining: requiredSeconds - elapsed_seconds,
+      remaining: requiredSeconds - elapsedSeconds,
     }, 400);
   }
 
@@ -401,9 +404,9 @@ async function verifyLinkVisit(
 async function verifyVideoWatch(
   admin: any,
   userId: string,
-  body: { attempt_id: string; watch_seconds: number }
+  body: { attempt_id: string; watch_seconds?: number }
 ) {
-  const { attempt_id, watch_seconds } = body;
+  const { attempt_id } = body;
 
   const { data: attempt } = await admin
     .from("task_attempts")
@@ -414,23 +417,27 @@ async function verifyVideoWatch(
 
   if (!attempt) return respond({ error: "Attempt not found" }, 404);
 
+  // Use server-side timing: compare now() against attempt created_at
+  const requiredSeconds = attempt.tasks?.required_seconds || 30;
+  const startedAt = new Date(attempt.created_at).getTime();
+  const serverWatchSeconds = Math.floor((Date.now() - startedAt) / 1000);
+
+  // Store the server-computed watch time
   await admin
     .from("task_attempts")
-    .update({ watch_seconds })
+    .update({ watch_seconds: serverWatchSeconds })
     .eq("id", attempt_id);
 
-  const requiredSeconds = attempt.tasks?.required_seconds || 30;
-
-  if (watch_seconds < requiredSeconds) {
+  if (serverWatchSeconds < requiredSeconds) {
     return respond({
       success: false,
-      remaining: requiredSeconds - watch_seconds,
+      remaining: requiredSeconds - serverWatchSeconds,
     });
   }
 
   await admin
     .from("task_attempts")
-    .update({ status: "approved", watch_seconds, reviewed_at: new Date().toISOString() })
+    .update({ status: "approved", watch_seconds: serverWatchSeconds, reviewed_at: new Date().toISOString() })
     .eq("id", attempt_id);
 
   const reward = attempt.tasks?.reward_points || 0;
