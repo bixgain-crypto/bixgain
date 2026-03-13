@@ -4,6 +4,7 @@ import {
   BixSnakeArenaGame,
   type BixSnakeArenaFinishResult,
 } from "@/components/mini-games/BixSnakeArenaGame";
+import { PlumberPuzzleGame } from "@/components/mini-games/PlumberPuzzleGame";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAppData } from "@/context/AppDataContext";
@@ -629,6 +630,24 @@ export default function Boosts() {
             })}
           </div>
         )}
+
+        {/* Plumber Puzzle Game */}
+        <motion.section
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass rounded-2xl p-5 sm:p-6 space-y-5"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold">Plumber Puzzle</h2>
+              <p className="text-sm text-muted-foreground mt-1">Connect pipes to create a continuous water flow path.</p>
+            </div>
+            <Badge variant="outline" className="text-xs">
+              Level 3 Required
+            </Badge>
+          </div>
+          <PlumberPuzzleGame />
+        </motion.section>
 
         <div className="glass rounded-2xl p-5 border border-border/70">
           <h3 className="text-lg font-semibold flex items-center gap-2">
