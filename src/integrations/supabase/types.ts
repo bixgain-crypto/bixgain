@@ -701,6 +701,42 @@ export type Database = {
         }
         Relationships: []
       }
+      plumber_puzzle_sessions: {
+        Row: {
+          completed: boolean
+          created_at: string
+          grid_size: number
+          id: string
+          level: number
+          moves: number
+          score: number
+          time_elapsed: number
+          user_id: string
+        }
+        Insert: {
+          completed?: boolean
+          created_at?: string
+          grid_size: number
+          id?: string
+          level: number
+          moves?: number
+          score?: number
+          time_elapsed?: number
+          user_id: string
+        }
+        Update: {
+          completed?: boolean
+          created_at?: string
+          grid_size?: number
+          id?: string
+          level?: number
+          moves?: number
+          score?: number
+          time_elapsed?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null

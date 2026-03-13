@@ -379,10 +379,10 @@ export function PlumberPuzzleGame() {
     if (!user?.id) return;
 
     try {
-      await supabase.from('plumber_puzzle_sessions').insert({
+      await (supabase as any).from('plumber_puzzle_sessions').insert({
         user_id: user.id,
         level,
-        grid_size: gameState.gridSize,
+        grid_size: gameState?.gridSize ?? 6,
         moves,
         time_elapsed: time,
         completed,
