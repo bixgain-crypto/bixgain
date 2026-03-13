@@ -1,4 +1,4 @@
-import { Brain, Coins, Crown, Puzzle, Snake } from "lucide-react";
+import { Brain, Coins, Crown, Puzzle, Gamepad2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 export type ArcadeGame = {
@@ -31,7 +31,7 @@ export const arcadeGames: ArcadeGame[] = [
     path: "/games/bixsnake-arena",
     title: "BixSnake Arena",
     description: "Classic snake gameplay with competitive scoring and BIX rewards.",
-    icon: Snake,
+    icon: Gamepad2,
     energyLabel: "Energy 5/7",
     rewardRate: "18 BIX / streak",
     highScoreLabel: "Arena King: 9,820",
