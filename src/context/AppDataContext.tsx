@@ -40,6 +40,10 @@ type AdminStatsRpcRow = {
   pending_claims?: number | null;
 };
 export type CoreUser = {
+  daily_streak: number;
+  email: ReactNode;
+  referral_code: string;
+  last_sign_in_at: any;
   id: string;
   username: string | null;
   created_at: string;
