@@ -10,7 +10,7 @@ import {
 const navItems = [
   { href: "/dashboard", label: "Home", icon: LayoutDashboard },
   { href: "/missions", label: "Missions", icon: Target },
-  { href: "/boosts", label: "Mini Games", icon: Gamepad2 },
+  { href: "/games", label: "Mini Games", icon: Gamepad2 },
   { href: "/leaderboard", label: "Rank", icon: Trophy },
   { href: "/wallet", label: "Wallet", icon: Wallet },
 ];
