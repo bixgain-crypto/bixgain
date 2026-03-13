@@ -81,7 +81,7 @@ export default function ProfilePage() {
   const achievements = [
     { title: 'First Steps', desc: 'Create your account', icon: Star, unlocked: true },
     { title: 'Streak Starter', desc: 'Reach a 3-day streak', icon: Flame, unlocked: (user?.daily_streak || 0) >= 3 },
-    { title: 'Earner', desc: 'Earn 1,000 BIX total', icon: Coins, unlocked: (user?.total_bix || 0) >= 1000 },
+    { title: 'er', desc: 'Earn 1,000 BIX total', icon: Coins, unlocked: (user?.total_bix || 0) >= 1000 },
     { title: 'Recruiter', desc: 'Refer 1 friend', icon: Users, unlocked: referralCount >= 1 },
     { title: 'Leveled Up', desc: 'Reach Level 2', icon: TrendingUp, unlocked: level >= 2 },
     { title: 'Dedicated', desc: 'Reach a 7-day streak', icon: Target, unlocked: (user?.daily_streak || 0) >= 7 },
@@ -257,7 +257,7 @@ export default function ProfilePage() {
                       <Button
                         variant="link"
                         className="text-primary mt-2"
-                        onClick={() => window.location.href = '/earn'}
+                        onClick={() => window.location.href = '/tasks'}
                       >
                         Browse Quests
                       </Button>
@@ -358,7 +358,7 @@ export default function ProfilePage() {
               <CardContent className="space-y-2">
                 <Button
                   className="w-full justify-start gap-3 gold-gradient font-bold"
-                  onClick={() => window.location.href = '/earn'}
+                  onClick={() => window.location.href = '/tasks'}
                 >
                   <Zap className="h-4 w-4" /> Earn BIX
                 </Button>
@@ -366,7 +366,10 @@ export default function ProfilePage() {
                   variant="outline"
                   className="w-full justify-start gap-3 border-primary/30 text-primary hover:bg-primary/10"
                   onClick={() => {
-                    const link = `${window.location.origin}?ref=${user?.referral_code || ''}`;
+                    const baseUrl = import.meta.env.VITE_PUBLIC_URL || window.location.origin;
+                    const link = user?.referral_code
+                      ? `${String(baseUrl).replace(/\/$/, "")}/auth?ref=${encodeURIComponent(user.referral_code)}`
+                      : "";
                     copyToClipboard(link, 'Referral link');
                   }}
                 >
