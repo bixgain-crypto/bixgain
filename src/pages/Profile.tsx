@@ -29,6 +29,8 @@ export default function ProfilePage() {
   const totalXp = Number(user?.total_xp || 0);
   const progress = getLevelProgress(totalXp);
   const level = progress.current.level;
+  const levelRank = progress.current.name;
+  const nextLevel = progress.next?.level ?? level;
   const xpInLevel = progress.xpIntoLevel;
   const xpToNext = progress.xpToNextLevel;
   const xpPercent = progress.progressPercent;
@@ -148,7 +150,7 @@ export default function ProfilePage() {
                 </div>
                 <p className="text-sm text-muted-foreground mb-3">{userEmail}</p>
                 <div className="flex items-center gap-2 flex-wrap justify-center lg:justify-start">
-                  <Badge className="gold-gradient border-none">Level {level} Miner</Badge>
+                  <Badge className="gold-gradient border-none">Level {level} {levelRank}</Badge>
                   <Badge variant="outline" className="border-primary/30 text-primary">
                     <Shield className="h-3 w-3 mr-1" /> Verified
                   </Badge>
@@ -160,8 +162,14 @@ export default function ProfilePage() {
                 {/* XP Progress inline */}
                 <div className="mt-5 max-w-md">
                   <div className="flex items-center justify-between text-xs mb-1.5">
-                    <span className="text-muted-foreground font-semibold uppercase tracking-wider">XP to Level {level + 1}</span>
-                    <span className="text-muted-foreground">{xpInLevel.toLocaleString()} / {xpToNext.toLocaleString()}</span>
+                    <span className="text-muted-foreground font-semibold uppercase tracking-wider">
+                      {progress.next ? `XP to Level ${nextLevel}` : 'Max Level Reached'}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {progress.next
+                        ? `${xpInLevel.toLocaleString()} / ${xpToNext.toLocaleString()}`
+                        : 'All ranks unlocked'}
+                    </span>
                   </div>
                   <Progress value={xpPercent} className="h-2.5" />
                 </div>
