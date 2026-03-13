@@ -455,7 +455,7 @@ export default function Tasks() {
           <div className="glass rounded-2xl p-5 text-sm text-muted-foreground">Loading missions...</div>
         ) : null}
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-5 xl:gap-6 xl:grid-cols-2">
           {visibleMissions.map((mission) => {
             const progress = getProgress(mission);
             const claimed = isMissionClaimed(mission);
@@ -465,7 +465,7 @@ export default function Tasks() {
                 key={mission.id}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="glass rounded-2xl p-5 space-y-4 cursor-pointer hover:border-primary/40 transition-colors"
+                className="glass rounded-3xl p-6 sm:p-7 space-y-5 cursor-pointer hover:border-primary/40 transition-all hover:-translate-y-0.5 min-h-[390px]"
                 onClick={() => handleOpenMissionLink(mission)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") {
@@ -478,35 +478,35 @@ export default function Tasks() {
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-lg font-semibold">{mission.name}</p>
-                    {mission.description ? <p className="text-sm text-muted-foreground mt-1">{mission.description}</p> : null}
-                    <p className="text-sm text-muted-foreground">{`Reward: +${formatXp(mission.xpReward)} XP`}</p>
+                    <p className="text-xl font-semibold leading-tight">{mission.name}</p>
+                    {mission.description ? <p className="text-sm sm:text-base text-muted-foreground mt-1.5">{mission.description}</p> : null}
+                    <p className="text-sm sm:text-base text-muted-foreground mt-2">{`Reward: +${formatXp(mission.xpReward)} XP`}</p>
                   </div>
                   <span className={`text-[11px] rounded-full border px-2 py-0.5 ${difficultyClass(mission.difficulty)}`}>
                     {mission.difficulty}
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                  <div className="rounded-lg border border-border/60 bg-secondary/35 px-3 py-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm sm:text-base">
+                  <div className="rounded-xl border border-border/60 bg-secondary/35 px-4 py-3">
                     <p className="text-xs text-muted-foreground">Progress</p>
                     <p className="font-semibold">{`${progress.current} / ${mission.target}`}</p>
                   </div>
-                  <div className="rounded-lg border border-border/60 bg-secondary/35 px-3 py-2">
+                  <div className="rounded-xl border border-border/60 bg-secondary/35 px-4 py-3">
                     <p className="text-xs text-muted-foreground">Level Required</p>
                     <p className="font-semibold">{`Level ${mission.levelRequired}`}</p>
                   </div>
-                  <div className="rounded-lg border border-border/60 bg-secondary/35 px-3 py-2">
+                  <div className="rounded-xl border border-border/60 bg-secondary/35 px-4 py-3">
                     <p className="text-xs text-muted-foreground">Cooldown</p>
                     <p className="font-semibold">{mission.cooldown}</p>
                   </div>
-                  <div className="rounded-lg border border-border/60 bg-secondary/35 px-3 py-2">
+                  <div className="rounded-xl border border-border/60 bg-secondary/35 px-4 py-3">
                     <p className="text-xs text-muted-foreground">Status</p>
                     <p className="font-semibold">{progress.completed ? "Completed" : "Active"}</p>
                   </div>
                 </div>
 
-                <div className="rounded-lg border border-border/60 bg-secondary/25 px-3 py-2 text-sm">
+                <div className="rounded-xl border border-border/60 bg-secondary/25 px-4 py-3 text-sm sm:text-base">
                   {mission.linkUrl ? (
                     mission.linkInternal ? (
                       <Link
@@ -549,7 +549,7 @@ export default function Tasks() {
                 <XpProgressBar value={progress.percent} />
 
                 {claimed ? (
-                  <div className="rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300 flex items-center gap-2">
+                  <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm sm:text-base text-emerald-300 flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4" />
                     Mission completed
                   </div>
