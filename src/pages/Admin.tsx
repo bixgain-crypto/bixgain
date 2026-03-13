@@ -99,9 +99,9 @@ export default function Admin() {
   const handleGrantRewards = async () => {
     const xp = rewardXp.trim() ? Number.parseInt(rewardXp, 10) : 0;
     const bix = rewardBix.trim() ? Number.parseInt(rewardBix, 10) : 0;
-    if (!rewardUserId) return toast.error("Select a user");
-    if (!Number.isInteger(xp) || xp < 0 || !Number.isInteger(bix) || bix < 0) return toast.error("Reward values must be non-negative integers");
-    if (xp === 0 && bix === 0) return toast.error("Provide XP and/or BIX amount");
+    if (!rewardUserId) { toast.error("Select a user"); return; }
+    if (!Number.isInteger(xp) || xp < 0 || !Number.isInteger(bix) || bix < 0) { toast.error("Reward values must be non-negative integers"); return; }
+    if (xp === 0 && bix === 0) { toast.error("Provide XP and/or BIX amount"); return; }
     await grantRewardsMutation.mutateAsync({ target_user_id: rewardUserId, xp_amount: xp, bix_amount: bix, reason: rewardReason.trim() || "Manual admin grant", description: rewardReason.trim() || "Manual admin grant" });
   };
   const handleCreateClaimableRewards = async () => {
