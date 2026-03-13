@@ -25,7 +25,7 @@ const navItems = [
   { href: "/missions", label: "Missions", icon: Target },
   { href: "/referrals", label: "Referrals", icon: Users },
   { href: "/spin", label: "Daily Boost", icon: Orbit },
-  { href: "/boosts", label: "Mini Games", icon: Gamepad2 },
+  { href: "/games", label: "Mini Games", icon: Gamepad2 },
   { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
   { href: "/wallet", label: "Wallet", icon: Wallet },
   { href: "/store", label: "Bix Store", icon: ShoppingBag },
