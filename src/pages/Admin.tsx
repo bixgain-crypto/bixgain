@@ -108,10 +108,10 @@ export default function Admin() {
     const xp = claimRewardXp.trim() ? Number.parseInt(claimRewardXp, 10) : 0;
     const bix = claimRewardBix.trim() ? Number.parseInt(claimRewardBix, 10) : 0;
     const timeout = Number.parseInt(claimTimeoutMinutes, 10);
-    if (!Number.isInteger(xp) || xp < 0 || !Number.isInteger(bix) || bix < 0) return toast.error("Reward values must be non-negative integers");
-    if (xp === 0 && bix === 0) return toast.error("Provide XP and/or BIX amount");
-    if (!Number.isInteger(timeout) || timeout <= 0) return toast.error("Timeout must be positive (minutes)");
-    if (claimAudience === "selected" && selectedUserIds.length === 0) return toast.error("Select at least one user or switch to All Users");
+    if (!Number.isInteger(xp) || xp < 0 || !Number.isInteger(bix) || bix < 0) { toast.error("Reward values must be non-negative integers"); return; }
+    if (xp === 0 && bix === 0) { toast.error("Provide XP and/or BIX amount"); return; }
+    if (!Number.isInteger(timeout) || timeout <= 0) { toast.error("Timeout must be positive (minutes)"); return; }
+    if (claimAudience === "selected" && selectedUserIds.length === 0) { toast.error("Select at least one user or switch to All Users"); return; }
     await createClaimableRewardsMutation.mutateAsync({ all_users: claimAudience === "all", user_ids: claimAudience === "selected" ? selectedUserIds : [], xp_amount: xp, bix_amount: bix, reason: claimReason.trim() || "Admin timed claim reward", description: claimReason.trim() || "Admin timed claim reward", expires_in_seconds: timeout * 60 });
   };
   const handleCreateActivity = async () => {
