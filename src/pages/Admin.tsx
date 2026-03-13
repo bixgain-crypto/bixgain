@@ -116,8 +116,8 @@ export default function Admin() {
   };
   const handleCreateActivity = async () => {
     const points = Number(activityPoints);
-    if (!activityUserId) return toast.error("Select a user");
-    if (!Number.isFinite(points) || points < 0) return toast.error("Points must be non-negative");
+    if (!activityUserId) { toast.error("Select a user"); return; }
+    if (!Number.isFinite(points) || points < 0) { toast.error("Points must be non-negative"); return; }
     await createActivityMutation.mutateAsync({ target_user_id: activityUserId, activity_type: activityType, points_earned: points, description: activityDescription.trim() || "Admin activity", metadata: { source: "admin-console-ui" }, grant_xp: false });
   };
 
