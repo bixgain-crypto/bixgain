@@ -1,6 +1,6 @@
 export type LevelTier = {
   level: number;
-  name: "Explorer" | "Builder" | "Pro" | "Elite" | "Legend";
+  name: string;
   minXp: number;
   badgeClass: string;
   ringClass: string;
@@ -47,6 +47,46 @@ export const LEVEL_TIERS: LevelTier[] = [
     badgeClass: "bg-cyan-300/20 text-cyan-200 border-cyan-200/40",
     ringClass: "ring-cyan-200/50",
     unlocks: ["Diamond Identity Badge", "Season Power Bonus"],
+  },
+  {
+    level: 6,
+    name: "Master",
+    minXp: 120000,
+    badgeClass: "bg-indigo-500/20 text-indigo-300 border-indigo-400/30",
+    ringClass: "ring-indigo-400/40",
+    unlocks: ["Master Mission Track", "1.25x XP Multiplier"],
+  },
+  {
+    level: 7,
+    name: "Grandmaster",
+    minXp: 185000,
+    badgeClass: "bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-400/30",
+    ringClass: "ring-fuchsia-400/40",
+    unlocks: ["Priority Event Queue", "Exclusive Seasonal Quests"],
+  },
+  {
+    level: 8,
+    name: "Mythic",
+    minXp: 265000,
+    badgeClass: "bg-rose-500/20 text-rose-300 border-rose-400/30",
+    ringClass: "ring-rose-400/40",
+    unlocks: ["1.35x XP Multiplier", "Mythic Rank Cosmetics"],
+  },
+  {
+    level: 9,
+    name: "Immortal",
+    minXp: 360000,
+    badgeClass: "bg-emerald-500/20 text-emerald-300 border-emerald-400/30",
+    ringClass: "ring-emerald-400/40",
+    unlocks: ["Immortal League Access", "Endgame Mission Boosts"],
+  },
+  {
+    level: 10,
+    name: "Apex",
+    minXp: 500000,
+    badgeClass: "bg-yellow-300/20 text-yellow-200 border-yellow-200/40",
+    ringClass: "ring-yellow-200/50",
+    unlocks: ["Apex Identity Aura", "Top-Tier Reward Multipliers"],
   },
 ];
 
