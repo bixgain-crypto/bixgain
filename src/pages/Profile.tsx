@@ -28,9 +28,9 @@ export default function ProfilePage() {
 
   const totalXp = Number(user?.total_xp || 0);
   const progress = getLevelProgress(totalXp);
-  const level = progress.level;
-  const xpInLevel = progress.xpInLevel;
-  const xpToNext = progress.xpToNext;
+  const level = progress.current.level;
+  const xpInLevel = progress.xpIntoLevel;
+  const xpToNext = progress.xpToNextLevel;
   const xpPercent = progress.progressPercent;
 
   useEffect(() => {
