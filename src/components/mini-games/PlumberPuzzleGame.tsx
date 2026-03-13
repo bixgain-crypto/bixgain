@@ -204,7 +204,7 @@ export function PlumberPuzzleGame() {
     ctx.translate(centerX, centerY);
     ctx.rotate((pipe.rotation * Math.PI) / 2);
 
-    ctx.strokeStyle = pipe.connected ? '#00ff00' : '#666';
+    ctx.strokeStyle = pipe.connected ? 'hsl(142, 76%, 36%)' : 'hsl(220, 10%, 50%)'; // green-600 for connected, muted for disconnected
     ctx.lineWidth = 4;
     ctx.lineCap = 'round';
 
@@ -237,27 +237,27 @@ export function PlumberPuzzleGame() {
         ctx.stroke();
         break;
       case 'valve':
-        ctx.strokeStyle = pipe.rotation === 0 ? '#ff0000' : '#00ff00';
+        ctx.strokeStyle = pipe.rotation === 0 ? 'hsl(0, 72%, 51%)' : 'hsl(142, 76%, 36%)'; // red-600 for closed, green-600 for open
         ctx.beginPath();
         ctx.arc(0, 0, radius, 0, 2 * Math.PI);
         ctx.stroke();
         break;
       case 'pump':
-        ctx.strokeStyle = '#0000ff';
+        ctx.strokeStyle = 'hsl(217, 91%, 60%)'; // blue-600
         ctx.beginPath();
         ctx.arc(0, 0, radius, 0, 2 * Math.PI);
         ctx.stroke();
-        ctx.fillStyle = '#0000ff';
+        ctx.fillStyle = 'hsl(217, 91%, 60%)';
         ctx.fill();
         break;
       case 'leak':
-        ctx.strokeStyle = '#ff8800';
+        ctx.strokeStyle = 'hsl(25, 95%, 53%)'; // orange-600
         ctx.beginPath();
         ctx.arc(0, 0, radius, 0, 2 * Math.PI);
         ctx.stroke();
         break;
       case 'locked':
-        ctx.strokeStyle = '#ff0000';
+        ctx.strokeStyle = 'hsl(0, 72%, 51%)'; // red-600
         ctx.lineWidth = 6;
         ctx.beginPath();
         ctx.moveTo(-radius, -radius);
@@ -279,12 +279,12 @@ export function PlumberPuzzleGame() {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Draw grid background
-    ctx.fillStyle = '#f0f0f0';
+    // Draw dark theme background
+    ctx.fillStyle = 'hsl(220, 18%, 7%)'; // card background color
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Draw grid lines
-    ctx.strokeStyle = '#ddd';
+    // Draw grid lines with theme colors
+    ctx.strokeStyle = 'hsl(220, 14%, 14%)'; // border color
     ctx.lineWidth = 1;
     for (let i = 0; i <= gameState.gridSize; i++) {
       ctx.beginPath();
@@ -305,8 +305,8 @@ export function PlumberPuzzleGame() {
       }
     }
 
-    // Highlight start and end
-    ctx.fillStyle = 'rgba(0, 255, 0, 0.3)';
+    // Highlight start and end with theme colors
+    ctx.fillStyle = 'hsla(142, 76%, 36%, 0.3)'; // green-600 with opacity
     ctx.fillRect(
       gameState.startPos.x * CELL_SIZE + GRID_PADDING,
       gameState.startPos.y * CELL_SIZE + GRID_PADDING,
@@ -425,107 +425,102 @@ export function PlumberPuzzleGame() {
   if (userLevel < 3) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-8 text-center">
-            <Lock className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-            <h2 className="text-2xl font-bold mb-2">Level 3 Required</h2>
-            <p className="text-muted-foreground mb-4">
-              Reach Level 3 to unlock the Plumber Puzzle game!
-            </p>
-            <Badge variant="outline">Current Level: {userLevel}</Badge>
-          </CardContent>
-        </Card>
+        <div className="glass rounded-2xl p-8 text-center max-w-md w-full">
+          <Lock className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+          <h2 className="text-2xl font-bold mb-2">Level 3 Required</h2>
+          <p className="text-muted-foreground mb-4">
+            Reach Level 3 to unlock the Plumber Puzzle game!
+          </p>
+          <Badge variant="outline">Current Level: {userLevel}</Badge>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Zap className="h-6 w-6" />
-            Plumber Puzzle Game
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {!isPlaying ? (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Button onClick={() => startGame(1)} className="h-20">
-                  <div className="text-center">
-                    <Play className="h-8 w-8 mx-auto mb-2" />
-                    <div>Level 1</div>
-                    <div className="text-sm opacity-75">6x6 Grid</div>
-                  </div>
-                </Button>
-                <Button onClick={() => startGame(5)} variant="outline" className="h-20">
-                  <div className="text-center">
-                    <Play className="h-8 w-8 mx-auto mb-2" />
-                    <div>Level 5</div>
-                    <div className="text-sm opacity-75">8x8 Grid</div>
-                  </div>
-                </Button>
-                <Button onClick={() => startGame(10)} variant="outline" className="h-20">
-                  <div className="text-center">
-                    <Play className="h-8 w-8 mx-auto mb-2" />
-                    <div>Level 10</div>
-                    <div className="text-sm opacity-75">10x10 Grid</div>
-                  </div>
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <div className="flex gap-4">
-                  <Badge variant="outline">
-                    <Clock className="h-4 w-4 mr-1" />
-                    {Math.floor(timer / 60)}:{(timer % 60).toString().padStart(2, '0')}
-                  </Badge>
-                  <Badge variant="outline">
-                    <RotateCcw className="h-4 w-4 mr-1" />
-                    Moves: {gameState?.moves || 0}
-                  </Badge>
-                  <Badge variant="outline">
-                    <Trophy className="h-4 w-4 mr-1" />
-                    Level: {gameState?.level || 0}
-                  </Badge>
+      <div className="glass rounded-2xl p-6 space-y-4">
+        <div className="flex items-center gap-2 mb-4">
+          <Zap className="h-6 w-6 text-primary" />
+          <h3 className="text-xl font-semibold">Plumber Puzzle Game</h3>
+        </div>
+
+        {!isPlaying ? (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Button onClick={() => startGame(1)} className="h-20 bg-secondary/35 hover:bg-secondary/50 border border-border/60">
+                <div className="text-center">
+                  <Play className="h-8 w-8 mx-auto mb-2" />
+                  <div>Level 1</div>
+                  <div className="text-sm opacity-75">6x6 Grid</div>
                 </div>
-                <Button onClick={resetGame} variant="outline">
-                  <RotateCcw className="h-4 w-4 mr-2" />
-                  Reset
+              </Button>
+              <Button onClick={() => startGame(5)} variant="outline" className="h-20 border-border/60 hover:bg-secondary/35">
+                <div className="text-center">
+                  <Play className="h-8 w-8 mx-auto mb-2" />
+                  <div>Level 5</div>
+                  <div className="text-sm opacity-75">8x8 Grid</div>
+                </div>
+              </Button>
+              <Button onClick={() => startGame(10)} variant="outline" className="h-20 border-border/60 hover:bg-secondary/35">
+                <div className="text-center">
+                  <Play className="h-8 w-8 mx-auto mb-2" />
+                  <div>Level 10</div>
+                  <div className="text-sm opacity-75">10x10 Grid</div>
+                </div>
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <div className="flex gap-4">
+                <div className="rounded-lg border border-border/60 bg-secondary/35 px-3 py-2">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider">Time</p>
+                  <p className="text-sm font-mono">{Math.floor(timer / 60)}:{(timer % 60).toString().padStart(2, '0')}</p>
+                </div>
+                <div className="rounded-lg border border-border/60 bg-secondary/35 px-3 py-2">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider">Moves</p>
+                  <p className="text-sm font-mono">{gameState?.moves || 0}</p>
+                </div>
+                <div className="rounded-lg border border-border/60 bg-secondary/35 px-3 py-2">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider">Level</p>
+                  <p className="text-sm font-mono">{gameState?.level || 0}</p>
+                </div>
+              </div>
+              <Button onClick={resetGame} variant="outline" className="border-border/60 hover:bg-secondary/35">
+                <RotateCcw className="h-4 w-4 mr-2" />
+                Reset
+              </Button>
+            </div>
+
+            <div className="flex justify-center">
+              <canvas
+                ref={canvasRef}
+                width={gameState ? gameState.gridSize * CELL_SIZE + GRID_PADDING * 2 : 400}
+                height={gameState ? gameState.gridSize * CELL_SIZE + GRID_PADDING * 2 : 400}
+                onClick={handleCanvasClick}
+                className="glass rounded-xl cursor-pointer border-0"
+                style={{ maxWidth: '100%', height: 'auto' }}
+              />
+            </div>
+
+            {gameState?.solved && (
+              <div className="text-center space-y-4 p-6 rounded-xl border border-primary/30 bg-primary/10">
+                <h3 className="text-2xl font-bold text-primary">Puzzle Solved!</h3>
+                <p className="text-lg">Score: <span className="text-gradient-gold font-bold">{score}</span></p>
+                <Button onClick={() => startGame((gameState.level || 1) + 1)} className="bg-gradient-gold text-primary-foreground font-semibold">
+                  Next Level
                 </Button>
               </div>
+            )}
 
-              <div className="flex justify-center">
-                <canvas
-                  ref={canvasRef}
-                  width={gameState ? gameState.gridSize * CELL_SIZE + GRID_PADDING * 2 : 400}
-                  height={gameState ? gameState.gridSize * CELL_SIZE + GRID_PADDING * 2 : 400}
-                  onClick={handleCanvasClick}
-                  className="border border-border rounded-lg cursor-pointer"
-                  style={{ maxWidth: '100%', height: 'auto' }}
-                />
-              </div>
-
-              {gameState?.solved && (
-                <div className="text-center space-y-4">
-                  <h3 className="text-2xl font-bold text-green-600">Puzzle Solved!</h3>
-                  <p className="text-lg">Score: {score}</p>
-                  <Button onClick={() => startGame((gameState.level || 1) + 1)}>
-                    Next Level
-                  </Button>
-                </div>
-              )}
-
-              <div className="text-sm text-muted-foreground text-center">
-                Click pipes to rotate them. Connect the green highlighted pipes to complete the puzzle.
-              </div>
+            <div className="text-sm text-muted-foreground text-center">
+              Click pipes to rotate them. Connect the green highlighted pipes to complete the puzzle.
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
