@@ -19,8 +19,8 @@ import {
 import { toast } from 'sonner';
 
 export default function ProfilePage() {
-  const { user, signOut } = useAuth();
-  const { refreshUserProfile } = useAppData();
+  const { user, session, signOut } = useAuth();
+  const { referralCode, refreshUserProfile } = useAppData();
   const [editing, setEditing] = useState(false);
   const [displayName, setDisplayName] = useState(user?.username || '');
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -32,6 +32,9 @@ export default function ProfilePage() {
   const xpInLevel = progress.xpIntoLevel;
   const xpToNext = progress.xpToNextLevel;
   const xpPercent = progress.progressPercent;
+
+  const streakCount = 0; // streak_count is on users table but not in CoreUser select; default to 0
+  const userEmail = session?.user?.email || '';
 
   useEffect(() => {
     setDisplayName(user?.username || '');
@@ -73,18 +76,18 @@ export default function ProfilePage() {
 
   const stats = [
     { label: 'Total Earned', value: `${(user?.total_bix || 0).toLocaleString()}`, suffix: 'BIX', icon: Coins, color: 'text-primary', bg: 'bg-primary/10' },
-    { label: 'Daily Streak', value: `${user?.daily_streak || 0}`, suffix: 'Days', icon: Flame, color: 'text-orange-400', bg: 'bg-orange-400/10' },
+    { label: 'Daily Streak', value: `${streakCount}`, suffix: 'Days', icon: Flame, color: 'text-orange-400', bg: 'bg-orange-400/10' },
     { label: 'Miner Level', value: `${level}`, suffix: 'Level', icon: Trophy, color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
     { label: 'Referrals', value: `${referralCount}`, suffix: 'Miners', icon: Users, color: 'text-sky-400', bg: 'bg-sky-400/10' },
   ];
 
   const achievements = [
     { title: 'First Steps', desc: 'Create your account', icon: Star, unlocked: true },
-    { title: 'Streak Starter', desc: 'Reach a 3-day streak', icon: Flame, unlocked: (user?.daily_streak || 0) >= 3 },
-    { title: 'er', desc: 'Earn 1,000 BIX total', icon: Coins, unlocked: (user?.total_bix || 0) >= 1000 },
+    { title: 'Streak Starter', desc: 'Reach a 3-day streak', icon: Flame, unlocked: streakCount >= 3 },
+    { title: 'Earner', desc: 'Earn 1,000 BIX total', icon: Coins, unlocked: (user?.total_bix || 0) >= 1000 },
     { title: 'Recruiter', desc: 'Refer 1 friend', icon: Users, unlocked: referralCount >= 1 },
     { title: 'Leveled Up', desc: 'Reach Level 2', icon: TrendingUp, unlocked: level >= 2 },
-    { title: 'Dedicated', desc: 'Reach a 7-day streak', icon: Target, unlocked: (user?.daily_streak || 0) >= 7 },
+    { title: 'Dedicated', desc: 'Reach a 7-day streak', icon: Target, unlocked: streakCount >= 7 },
     { title: 'Whale', desc: 'Earn 10,000 BIX total', icon: Award, unlocked: (user?.total_bix || 0) >= 10000 },
     { title: 'Influencer', desc: 'Refer 5 friends', icon: Star, unlocked: referralCount >= 5 },
   ];
@@ -143,7 +146,7 @@ export default function ProfilePage() {
                     </>
                   )}
                 </div>
-                <p className="text-sm text-muted-foreground mb-3">{user?.email}</p>
+                <p className="text-sm text-muted-foreground mb-3">{userEmail}</p>
                 <div className="flex items-center gap-2 flex-wrap justify-center lg:justify-start">
                   <Badge className="gold-gradient border-none">Level {level} Miner</Badge>
                   <Badge variant="outline" className="border-primary/30 text-primary">
@@ -257,7 +260,7 @@ export default function ProfilePage() {
                       <Button
                         variant="link"
                         className="text-primary mt-2"
-                        onClick={() => window.location.href = '/tasks'}
+                        onClick={() => window.location.href = '/missions'}
                       >
                         Browse Quests
                       </Button>
@@ -317,22 +320,17 @@ export default function ProfilePage() {
                       variant="ghost"
                       size="icon"
                       className="h-6 w-6 text-muted-foreground hover:text-primary"
-                      onClick={() => copyToClipboard(user?.referral_code || '', 'Referral code')}
+                      onClick={() => copyToClipboard(referralCode || '', 'Referral code')}
                     >
                       <Copy className="h-3 w-3" />
                     </Button>
                   </div>
-                  <p className="text-xs font-mono text-primary font-bold">{user?.referral_code || 'N/A'}</p>
+                  <p className="text-xs font-mono text-primary font-bold">{referralCode || 'N/A'}</p>
                 </div>
 
                 <div className="p-3 rounded-xl bg-muted/30 border border-border/50">
                   <p className="text-[10px] text-muted-foreground uppercase font-semibold mb-1">Email</p>
-                  <p className="text-xs truncate">{user?.email}</p>
-                </div>
-
-                <div className="p-3 rounded-xl bg-muted/30 border border-border/50">
-                  <p className="text-[10px] text-muted-foreground uppercase font-semibold mb-1">Last Login</p>
-                  <p className="text-xs">{user?.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleString() : 'Current session'}</p>
+                  <p className="text-xs truncate">{userEmail}</p>
                 </div>
 
                 <div className="p-3 rounded-xl bg-muted/30 border border-border/50">
@@ -358,7 +356,7 @@ export default function ProfilePage() {
               <CardContent className="space-y-2">
                 <Button
                   className="w-full justify-start gap-3 gold-gradient font-bold"
-                  onClick={() => window.location.href = '/tasks'}
+                  onClick={() => window.location.href = '/missions'}
                 >
                   <Zap className="h-4 w-4" /> Earn BIX
                 </Button>
@@ -367,8 +365,8 @@ export default function ProfilePage() {
                   className="w-full justify-start gap-3 border-primary/30 text-primary hover:bg-primary/10"
                   onClick={() => {
                     const baseUrl = import.meta.env.VITE_PUBLIC_URL || window.location.origin;
-                    const link = user?.referral_code
-                      ? `${String(baseUrl).replace(/\/$/, "")}/auth?ref=${encodeURIComponent(user.referral_code)}`
+                    const link = referralCode
+                      ? `${String(baseUrl).replace(/\/$/, "")}/auth?ref=${encodeURIComponent(referralCode)}`
                       : "";
                     copyToClipboard(link, 'Referral link');
                   }}
@@ -385,7 +383,7 @@ export default function ProfilePage() {
                 <Button
                   variant="ghost"
                   className="w-full justify-start gap-3 text-muted-foreground hover:text-red-400 hover:bg-red-400/10"
-                  onClick={signOut}
+                  onClick={() => void signOut()}
                 >
                   <LogOut className="h-4 w-4" /> Log Out
                 </Button>
@@ -393,209 +391,6 @@ export default function ProfilePage() {
             </Card>
           </div>
         </div>
-      </div>
-    </AppLayout>
-  );
-
-
-  const submitUsername = async () => {
-    const next = usernameInput.trim();
-    if (!next) {
-      toast.error("Username cannot be empty");
-      return;
-    }
-
-    setSaving(true);
-    try {
-      await changeUsername(next);
-      toast.success("Username updated");
-      await refreshUserProfile();
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Failed to update username";
-      toast.error(message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <AppLayout>
-      <div className="space-y-5 sm:space-y-6">
-        {/* Profile header */}
-        <motion.section
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="glass rounded-2xl p-5 sm:p-8"
-        >
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2 truncate">
-                <User className="h-5 w-5 sm:h-6 sm:w-6 text-primary shrink-0" />
-                <span className="truncate">{user?.username || "Unnamed User"}</span>
-              </h1>
-              <p className="text-sm text-muted-foreground mt-1">
-                {`Level ${Number(user?.current_level || 1)} - ${String(user?.level_name || "Explorer")}`}
-              </p>
-            </div>
-            <LevelBadge totalXp={totalXp} />
-          </div>
-
-          <div className="mt-5 space-y-3">
-            <XpProgressBar value={progress.progressPercent} />
-            <p className="text-xs text-muted-foreground">
-              {`XP to Next Level: ${formatXp(progress.xpToNextLevel)} XP`}
-            </p>
-          </div>
-        </motion.section>
-
-        {/* Mini game stats */}
-        <motion.section
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.12 }}
-          className="glass rounded-2xl p-5 sm:p-6 space-y-4"
-        >
-          <div>
-            <h2 className="text-base sm:text-lg font-semibold">Mini Game Stats</h2>
-            <p className="text-xs text-muted-foreground mt-1">XP and BIX performance from arcade sessions.</p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="rounded-xl border border-border/60 bg-secondary/35 px-4 py-3">
-              <p className="text-[10px] sm:text-xs uppercase tracking-wider text-muted-foreground">Total Games</p>
-              <p className="mt-1.5 text-lg sm:text-xl font-semibold">
-                {loadingGameStats ? "--" : Number(gameStats?.total_games_played || 0).toLocaleString()}
-              </p>
-            </div>
-            <div className="rounded-xl border border-border/60 bg-secondary/35 px-4 py-3">
-              <p className="text-[10px] sm:text-xs uppercase tracking-wider text-muted-foreground">XP from Games</p>
-              <p className="mt-1.5 text-lg sm:text-xl font-semibold text-gradient-gold">
-                {loadingGameStats ? "--" : formatXp(gameStats?.total_xp_from_games || 0)}
-              </p>
-            </div>
-            <div className="rounded-xl border border-border/60 bg-secondary/35 px-4 py-3">
-              <p className="text-[10px] sm:text-xs uppercase tracking-wider text-muted-foreground">BIX from Games</p>
-              <p className="mt-1.5 text-lg sm:text-xl font-semibold">
-                {loadingGameStats ? "--" : Number(gameStats?.total_bix_earned_from_games || 0).toFixed(4)}
-              </p>
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-border/60 bg-secondary/30 px-4 py-3">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">Best Score Per Game</p>
-            {loadingGameStats ? (
-              <p className="text-sm text-muted-foreground mt-2">Loading mini game stats...</p>
-            ) : gameStats && Object.keys(gameStats.best_score_per_game).length > 0 ? (
-              <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {Object.entries(gameStats.best_score_per_game)
-                  .sort(([a], [b]) => a.localeCompare(b))
-                  .map(([gameName, score]) => (
-                    <div key={gameName} className="rounded-lg border border-border/50 bg-background/20 px-3 py-2 flex items-center justify-between">
-                      <span className="text-sm font-medium">{gameName}</span>
-                      <span className="text-sm font-mono text-primary">{Number(score).toLocaleString()}</span>
-                    </div>
-                  ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground mt-2">No mini game scores recorded yet.</p>
-            )}
-          </div>
-        </motion.section>
-
-        {/* Stats grid */}
-        <motion.section
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.06 }}
-          className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6 sm:gap-4"
-        >
-          <div className="glass rounded-xl p-4 sm:p-5">
-            <p className="text-[10px] sm:text-xs uppercase tracking-wider text-muted-foreground">Username</p>
-            <p className="mt-1.5 sm:mt-2 text-base sm:text-lg font-semibold truncate">{user?.username || "-"}</p>
-          </div>
-          <div className="glass rounded-xl p-4 sm:p-5">
-            <p className="text-[10px] sm:text-xs uppercase tracking-wider text-muted-foreground">Level Name</p>
-            <p className="mt-1.5 sm:mt-2 text-base sm:text-lg font-semibold truncate">{String(user?.level_name || "Explorer")}</p>
-          </div>
-          <div className="glass rounded-xl p-4 sm:p-5">
-            <p className="text-[10px] sm:text-xs uppercase tracking-wider text-muted-foreground">Level</p>
-            <p className="mt-1.5 sm:mt-2 text-base sm:text-lg font-semibold">{Number(user?.current_level || 1)}</p>
-          </div>
-          <div className="glass rounded-xl p-4 sm:p-5">
-            <p className="text-[10px] sm:text-xs uppercase tracking-wider text-muted-foreground">Total XP</p>
-            <p className="mt-1.5 sm:mt-2 text-base sm:text-lg font-semibold text-gradient-gold">{formatXp(totalXp)}</p>
-          </div>
-          <div className="glass rounded-xl p-4 sm:p-5">
-            <p className="text-[10px] sm:text-xs uppercase tracking-wider text-muted-foreground">Bix Balance</p>
-            <p className="mt-1.5 sm:mt-2 text-base sm:text-lg font-semibold">{Number(user?.bix_balance || 0).toLocaleString()}</p>
-          </div>
-          <div className="glass rounded-xl p-4 sm:p-5">
-            <p className="text-[10px] sm:text-xs uppercase tracking-wider text-muted-foreground">Total Bix</p>
-            <p className="mt-1.5 sm:mt-2 text-base sm:text-lg font-semibold">{Number(user?.total_bix || 0).toLocaleString()}</p>
-          </div>
-        </motion.section>
-
-        {/* Join date */}
-        <motion.section
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="glass rounded-2xl p-5 sm:p-6"
-        >
-          <p className="text-sm text-muted-foreground flex items-center gap-2">
-            <CalendarDays className="h-4 w-4" />
-            Join Date: {user?.created_at ? new Date(user.created_at).toLocaleDateString() : "-"}
-          </p>
-        </motion.section>
-
-        {/* Change username */}
-        <motion.section
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.14 }}
-          className="glass rounded-2xl p-5 sm:p-6"
-        >
-          <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2">
-            <UserRoundPen className="h-5 w-5 text-primary" />
-            Change Username
-          </h2>
-          <div className="mt-3 space-y-2 max-w-xl">
-            <Label htmlFor="username">Username</Label>
-            <Input
-              id="username"
-              value={usernameInput}
-              onChange={(event) => setUsernameInput(event.target.value)}
-              placeholder="Enter username"
-              className="bg-secondary/60"
-            />
-            <Button
-              onClick={submitUsername}
-              disabled={saving}
-              className="bg-gradient-gold text-primary-foreground font-semibold"
-            >
-              {saving ? "Updating..." : "Save Username"}
-            </Button>
-          </div>
-        </motion.section>
-
-        {/* Sign Out — prominent on all screens */}
-        <motion.section
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.18 }}
-          className="glass rounded-2xl p-5 sm:p-6"
-        >
-          <h2 className="text-base sm:text-lg font-semibold mb-3">Account</h2>
-          <Button
-            onClick={() => void signOut()}
-            variant="destructive"
-            size="lg"
-            className="w-full sm:w-auto font-semibold"
-          >
-            <LogOut className="h-5 w-5 mr-2" />
-            Sign Out
-          </Button>
-        </motion.section>
       </div>
     </AppLayout>
   );
