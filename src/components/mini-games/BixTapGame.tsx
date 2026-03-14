@@ -1,6 +1,7 @@
+import { getMiniGamesOverview, startMiniGameSession, submitMiniGameScore } from "@/lib/miniGamesApi";
 import { formatXp } from "@/lib/progression";
 import { motion } from "framer-motion";
-import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
+import { useEffect, useRef, useState, type PointerEvent } from "react";
 
 type GameFinishPayload = {
   rawScore: number;
@@ -21,104 +22,114 @@ type Bubble = {
   duration: number;
 };
 
-const ROUND_DURATION_SECONDS = 10;
-const XP_PER_TAP = 2;
-const ENERGY_MAX = 100;
-const ENERGY_COST_PER_TAP = 1;
-const ENERGY_REGEN_MS = 5000;
-const TAP_THROTTLE_MS = 60;
+const ENERGY_FALLBACK_MAX = 100;
+const TAP_THROTTLE_MS = 80;
+const XP_BUBBLE_VALUE = 2;
 
 export function BixTapGame({ onFinish }: Props) {
-  const [score, setScore] = useState(0);
-  const [, setTimeLeft] = useState(ROUND_DURATION_SECONDS);
-  const scoreRef = useRef(0);
-  const [energy, setEnergy] = useState(ENERGY_MAX);
-  const [pulseSeed, setPulseSeed] = useState(0);
+  const [xpTotal, setXpTotal] = useState(0);
+  const [energy, setEnergy] = useState(0);
+  const [maxEnergy, setMaxEnergy] = useState(ENERGY_FALLBACK_MAX);
   const [bubbleSeed, setBubbleSeed] = useState(0);
+  const [pulseSeed, setPulseSeed] = useState(0);
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
+  const [isSubmittingTap, setIsSubmittingTap] = useState(false);
 
+  const [errorText, setErrorText] = useState<string | null>(null);
   const tapAreaRef = useRef<HTMLButtonElement | null>(null);
   const lastTapAtRef = useRef(0);
 
-  const xp = useMemo(() => score * XP_PER_TAP, [score]);
-
   useEffect(() => {
-    scoreRef.current = score;
-  }, [score]);
+    let isMounted = true;
 
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setTimeLeft((current) => {
-        if (current <= 1) {
-          onFinish({ rawScore: scoreRef.current });
-          setScore(0);
-          scoreRef.current = 0;
-          setEnergy(ENERGY_MAX);
-          return ROUND_DURATION_SECONDS;
-        }
-
-        return current - 1;
-      });
-    }, 1000);
-
-    return () => {
-      window.clearInterval(timer);
+    const loadFromBackend = async () => {
+      try {
+        const overview = await getMiniGamesOverview();
+        if (!isMounted) return;
+        setXpTotal(overview.stats.total_xp_from_games);
+        setEnergy(overview.energy);
+        setMaxEnergy(overview.max_energy);
+        setErrorText(null);
+      } catch (error) {
+        if (!isMounted) return;
+        setErrorText(error instanceof Error ? error.message : "Could not load BIXTap data.");
+      }
     };
-  }, [onFinish]);
 
-  useEffect(() => {
-    const regenTimer = window.setInterval(() => {
-      setEnergy((current) => Math.min(ENERGY_MAX, current + 1));
-    }, ENERGY_REGEN_MS);
+    void loadFromBackend();
 
     return () => {
-      window.clearInterval(regenTimer);
+      isMounted = false;
     };
   }, []);
 
-  const handleTap = (event: PointerEvent<HTMLButtonElement>) => {
+  const handleTap = async (event: PointerEvent<HTMLButtonElement>) => {
     const now = Date.now();
-    if (energy < ENERGY_COST_PER_TAP || now - lastTapAtRef.current < TAP_THROTTLE_MS) return;
+    if (isSubmittingTap || energy <= 0 || now - lastTapAtRef.current < TAP_THROTTLE_MS) return;
 
     lastTapAtRef.current = now;
-    const nextSeed = bubbleSeed + 1;
-    setBubbleSeed(nextSeed);
-    setScore((current) => current + 1);
-    setEnergy((current) => Math.max(0, current - ENERGY_COST_PER_TAP));
-    setPulseSeed((current) => current + 1);
+    setIsSubmittingTap(true);
+    setErrorText(null);
 
     const rect = tapAreaRef.current?.getBoundingClientRect();
-    const localX = rect ? event.clientX - rect.left : 0;
-    const localY = rect ? event.clientY - rect.top : 0;
+    const x = rect ? event.clientX - rect.left : 0;
+    const y = rect ? event.clientY - rect.top : 0;
 
-    const nextBubble: Bubble = {
+    const nextSeed = bubbleSeed + 1;
+    const bubble: Bubble = {
       id: nextSeed,
-      x: localX || (rect ? rect.width / 2 : 0),
-      y: localY || (rect ? rect.height / 2 : 0),
+      x: x || (rect ? rect.width / 2 : 0),
+      y: y || (rect ? rect.height / 2 : 0),
       driftX: Math.random() * 42 - 21,
       size: 16 + Math.random() * 8,
       duration: 0.8 + Math.random() * 0.4,
     };
 
-    setBubbles((current) => [...current, nextBubble]);
+    try {
+      const session = await startMiniGameSession("bixtap", { input: "tap" });
+      const result = await submitMiniGameScore(session.session_id, 1, { input: "tap" });
 
-    window.setTimeout(() => {
-      setBubbles((current) => current.filter((bubble) => bubble.id !== nextBubble.id));
-    }, nextBubble.duration * 1000 + 60);
+      setBubbleSeed(nextSeed);
+      setPulseSeed((value) => value + 1);
+      setBubbles((current) => [...current, bubble]);
+      setEnergy(result.energy_remaining);
+      setXpTotal((current) => current + result.xp_earned);
+
+      onFinish({ rawScore: result.raw_score, estimatedXp: result.xp_earned });
+
+      window.setTimeout(() => {
+        setBubbles((current) => current.filter((item) => item.id !== bubble.id));
+      }, bubble.duration * 1000 + 50);
+    } catch (error) {
+      setErrorText(error instanceof Error ? error.message : "Tap failed. Please retry.");
+
+      try {
+        const overview = await getMiniGamesOverview();
+        setXpTotal(overview.stats.total_xp_from_games);
+        setEnergy(overview.energy);
+        setMaxEnergy(overview.max_energy);
+      } catch {
+        // Preserve original error text when fallback refresh fails.
+      }
+    } finally {
+      setIsSubmittingTap(false);
+    }
   };
 
   return (
-    <div className="mx-auto flex min-h-[500px] w-full max-w-md flex-col rounded-3xl border border-cyan-300/20 bg-slate-950 p-4 text-cyan-50 shadow-[0_0_70px_-35px_rgba(34,211,238,0.9)]">
+    <div className="mx-auto flex min-h-[520px] w-full max-w-md flex-col rounded-3xl border border-cyan-300/25 bg-slate-950 p-4 text-cyan-50 shadow-[0_0_70px_-35px_rgba(34,211,238,0.9)]">
       <div className="flex items-center justify-between rounded-xl border border-cyan-200/20 bg-slate-900/80 px-4 py-3 text-sm font-semibold">
-        <p>{`XP: ${formatXp(xp)}`}</p>
-        <p>{`Energy: ${energy} / ${ENERGY_MAX}`}</p>
+        <p>{`XP: ${formatXp(xpTotal)}`}</p>
+        <p>{`Energy: ${energy} / ${maxEnergy}`}</p>
       </div>
 
       <button
         ref={tapAreaRef}
         type="button"
-        onPointerDown={handleTap}
-        disabled={energy < ENERGY_COST_PER_TAP}
+        onPointerDown={(event) => {
+          void handleTap(event);
+        }}
+        disabled={energy <= 0 || isSubmittingTap}
         style={{ touchAction: "manipulation" }}
         className="relative mt-4 flex flex-1 items-center justify-center overflow-hidden rounded-2xl border border-cyan-300/25 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.24),rgba(15,23,42,1))]"
       >
@@ -136,7 +147,7 @@ export function BixTapGame({ onFinish }: Props) {
             >
               <img src="/bixgain.png" alt="BixGain" className="h-[70%] w-[70%] rounded-full object-cover" />
             </span>
-            <span>+{XP_PER_TAP} XP</span>
+            <span>{`+${XP_BUBBLE_VALUE} XP`}</span>
           </motion.div>
         ))}
 
@@ -151,13 +162,14 @@ export function BixTapGame({ onFinish }: Props) {
           <img src="/bixgain.png" alt="Tap BIX coin" className="absolute inset-[14%] h-[72%] w-[72%] rounded-full object-cover" />
         </motion.div>
 
-        {energy < ENERGY_COST_PER_TAP ? (
+        {energy <= 0 ? (
           <div className="absolute bottom-4 rounded-full border border-cyan-200/30 bg-slate-900/90 px-3 py-1 text-xs text-cyan-100">
-            Energy empty · regenerates every 5s
+            No energy left. Recharge required.
           </div>
         ) : null}
       </button>
 
+      {errorText ? <p className="mt-3 text-center text-xs text-red-300">{errorText}</p> : null}
     </div>
   );
 }
