@@ -35,7 +35,7 @@ export default function ProfilePage() {
   const xpToNext = progress.xpToNextLevel;
   const xpPercent = progress.progressPercent;
 
-  const streakCount = 0; // streak_count is on users table but not in CoreUser select; default to 0
+  const streakCount = Number(user?.streak_count || 0);
   const userEmail = session?.user?.email || '';
 
   useEffect(() => {
