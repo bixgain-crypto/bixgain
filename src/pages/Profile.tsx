@@ -35,7 +35,7 @@ export default function ProfilePage() {
   const xpToNext = progress.xpToNextLevel;
   const xpPercent = progress.progressPercent;
 
-  const streakCount = 0; // streak_count is on users table but not in CoreUser select; default to 0
+  const streakCount = Number(user?.streak_count || 0);
   const userEmail = session?.user?.email || '';
 
   useEffect(() => {
@@ -276,8 +276,8 @@ export default function ProfilePage() {
                   ) : transactions.map((tx) => (
                     <div key={tx.id} className="flex items-center justify-between p-3 rounded-xl bg-muted/20 border border-white/5">
                       <div className="flex items-center gap-3">
-                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${tx.amount > 0 ? 'bg-green-400/10' : 'bg-red-400/10'}`}>
-                          {tx.amount > 0 ? (
+                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${Number(tx.net_amount) > 0 ? 'bg-green-400/10' : 'bg-red-400/10'}`}>
+                          {Number(tx.net_amount) > 0 ? (
                             <ArrowDownLeft className="h-4 w-4 text-green-400" />
                           ) : (
                             <ArrowUpRight className="h-4 w-4 text-red-400" />
@@ -285,11 +285,11 @@ export default function ProfilePage() {
                         </div>
                         <div>
                           <p className="text-sm font-medium">{tx.description || 'Transaction'}</p>
-                          <p className="text-xs text-muted-foreground capitalize">{tx.type || 'transfer'} &middot; {new Date(tx.created_at).toLocaleDateString()}</p>
+                          <p className="text-xs text-muted-foreground capitalize">{tx.transaction_type?.replace('_', ' ') || 'transfer'} &middot; {new Date(tx.created_at).toLocaleDateString()}</p>
                         </div>
                       </div>
-                      <p className={`font-bold text-sm ${tx.amount > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {tx.amount > 0 ? '+' : ''}{tx.amount} BIX
+                      <p className={`font-bold text-sm ${Number(tx.net_amount) > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {Number(tx.net_amount) > 0 ? '+' : ''}{Number(tx.net_amount)} BIX
                       </p>
                     </div>
                   ))}

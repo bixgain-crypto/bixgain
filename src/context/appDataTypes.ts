@@ -45,6 +45,10 @@ export type CoreUser = {
   admin_role: string | null;
   is_active: boolean;
   is_frozen: boolean;
+  streak_count: number | null;
+  weekly_xp: number | null;
+  season_xp: number | null;
+  xp_multiplier: number | null;
 };
 
 export type NormalizedWallet = WalletRow & {
