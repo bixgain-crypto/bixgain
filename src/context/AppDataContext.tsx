@@ -120,7 +120,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       try {
         const { data: userRow, error: userError } = await supabase
           .from("users")
-          .select("id, username, created_at, bix_balance, total_bix, total_xp, converted_xp, current_level, level_name, is_admin, admin_role, is_active, is_frozen")
+          .select("id, username, created_at, bix_balance, total_bix, total_xp, converted_xp, current_level, level_name, is_admin, admin_role, is_active, is_frozen, streak_count, weekly_xp, season_xp, xp_multiplier")
           .eq("id", sessionUserId)
           .maybeSingle();
 
