@@ -11,7 +11,7 @@ type Props = {
 
 export function ArcadeGameInterface({ game, onReward }: Props) {
   if (game.slug === "bixtap") {
-    return <BixTapGame onFinish={({ rawScore }) => onReward(Math.max(1, Math.round(rawScore / 4)))} />;
+    return <BixTapGame onFinish={() => undefined} />;
   }
 
   if (game.slug === "bixsnake-arena") {
