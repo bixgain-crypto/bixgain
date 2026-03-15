@@ -14,6 +14,7 @@ interface Pipe {
   rotation: number;
   connected: boolean;
   locked: boolean;
+  flowPhase?: number;
 }
 
 interface GameState {
@@ -25,6 +26,8 @@ interface GameState {
   timeElapsed: number;
   level: number;
   gridSize: number;
+  flowPath: { x: number; y: number }[] | null;
+  flowProgress: number;
 }
 
 const PIPE_TYPES = {
@@ -59,6 +62,8 @@ export function PlumberPuzzleGame() {
   const [timer, setTimer] = useState(0);
   const [score, setScore] = useState(0);
   const [userLevel, setUserLevel] = useState(0);
+  const [flowAnimating, setFlowAnimating] = useState(false);
+  const animationRef = useRef<number | null>(null);
 
   const CELL_SIZE = 50;
   const GRID_PADDING = 20;
@@ -126,7 +131,9 @@ export function PlumberPuzzleGame() {
       moves: 0,
       timeElapsed: 0,
       level,
-      gridSize
+      gridSize,
+      flowPath: null,
+      flowProgress: 0
     };
   }, []);
 
@@ -157,19 +164,28 @@ export function PlumberPuzzleGame() {
     return types[Math.floor(Math.random() * types.length)];
   };
 
-  const checkConnections = (grid: Pipe[][], startPos: { x: number; y: number }, endPos: { x: number; y: number }): boolean => {
+  const findConnectedPath = (grid: Pipe[][], startPos: { x: number; y: number }, endPos: { x: number; y: number }): { x: number; y: number }[] | null => {
     const visited = new Set<string>();
+    const parent = new Map<string, { x: number; y: number }>();
     const queue = [startPos];
+    visited.add(`${startPos.x},${startPos.y}`);
 
     while (queue.length > 0) {
       const current = queue.shift()!;
-      const key = `${current.x},${current.y}`;
-      if (visited.has(key)) continue;
-      visited.add(key);
+      if (current.x === endPos.x && current.y === endPos.y) {
+        const path: { x: number; y: number }[] = [];
+        let cur = endPos;
+        while (cur.x !== startPos.x || cur.y !== startPos.y) {
+          path.push(cur);
+          cur = parent.get(`${cur.x},${cur.y}`)!;
+        }
+        path.push(startPos);
+        return path.reverse();
+      }
 
       const pipe = grid[current.y][current.x];
       const pipeDefs = PIPE_CONNECTIONS[pipe.type as keyof typeof PIPE_CONNECTIONS];
-const connections = pipeDefs[pipe.rotation % pipeDefs.length];
+      const connections = pipeDefs[pipe.rotation % pipeDefs.length];
 
       // Check all four directions
       const directions = [
@@ -186,29 +202,99 @@ const connections = pipeDefs[pipe.rotation % pipeDefs.length];
           if (nx >= 0 && nx < grid[0].length && ny >= 0 && ny < grid.length) {
             const neighbor = grid[ny][nx];
             const neighborDefs = PIPE_CONNECTIONS[neighbor.type as keyof typeof PIPE_CONNECTIONS];
-const neighborConnections = neighborDefs[neighbor.rotation % neighborDefs.length];
+            const neighborConnections = neighborDefs[neighbor.rotation % neighborDefs.length];
             if (neighborConnections[(i + 2) % 4]) { // Check opposite direction
-              queue.push({ x: nx, y: ny });
+              const neighborKey = `${nx},${ny}`;
+              if (!visited.has(neighborKey)) {
+                visited.add(neighborKey);
+                parent.set(neighborKey, current);
+                queue.push({ x: nx, y: ny });
+              }
             }
           }
         }
       }
     }
 
-    return visited.has(`${endPos.x},${endPos.y}`);
+    return null;
   };
 
-  const drawPipe = (ctx: CanvasRenderingContext2D, x: number, y: number, pipe: Pipe, cellSize: number) => {
-    const centerX = x * cellSize + cellSize / 2;
-    const centerY = y * cellSize + cellSize / 2;
-    const radius = cellSize * 0.3;
+  const createMetallicGradient = (ctx: CanvasRenderingContext2D, x: number, y: number, r: number) => {
+    const gradient = ctx.createRadialGradient(x - r * 0.4, y - r * 0.4, r * 0.12, x, y, r * 1.1);
+    gradient.addColorStop(0, '#e8f0ff');
+    gradient.addColorStop(0.3, '#adc2df');
+    gradient.addColorStop(0.55, '#6d82a1');
+    gradient.addColorStop(0.8, '#45566d');
+    gradient.addColorStop(1, '#283647');
+    return gradient;
+  };
+
+  const createRustGradient = (ctx: CanvasRenderingContext2D, r: number) => {
+    const gradient = ctx.createLinearGradient(-r, -r, r, r);
+    gradient.addColorStop(0, '#7a3f1f');
+    gradient.addColorStop(0.45, '#9a5530');
+    gradient.addColorStop(0.75, '#c07d44');
+    gradient.addColorStop(1, '#6e371c');
+    return gradient;
+  };
+
+  const drawFlange = (ctx: CanvasRenderingContext2D, dir: number, cellSize: number, connected: boolean) => {
+    const flangeSize = cellSize * 0.16;
+    const half = cellSize / 2;
+    const offsets = [
+      { dx: 0, dy: -half },
+      { dx: half, dy: 0 },
+      { dx: 0, dy: half },
+      { dx: -half, dy: 0 }
+    ];
+    const { dx, dy } = offsets[dir];
+
+    ctx.save();
+    ctx.translate(dx, dy);
+
+    ctx.beginPath();
+    ctx.arc(0, 0, flangeSize, 0, Math.PI * 2);
+    ctx.fillStyle = connected ? '#4f6886' : '#4f5563';
+    ctx.fill();
+
+    const boltR = flangeSize * 0.2;
+    for (let a = 0; a < Math.PI * 2; a += Math.PI / 2) {
+      const bx = Math.cos(a) * flangeSize * 0.58;
+      const by = Math.sin(a) * flangeSize * 0.58;
+      ctx.beginPath();
+      ctx.arc(bx, by, boltR, 0, Math.PI * 2);
+      ctx.fillStyle = '#23262f';
+      ctx.fill();
+    }
+
+    ctx.restore();
+  };
+
+  const drawPipe = (ctx: CanvasRenderingContext2D, x: number, y: number, pipe: Pipe, cellSize: number, gridPadding: number, flowAnim: boolean) => {
+    const centerX = x * cellSize + cellSize / 2 + gridPadding;
+    const centerY = y * cellSize + cellSize / 2 + gridPadding;
+    const radius = cellSize * 0.38;
+    const innerR = radius * 0.62;
 
     ctx.save();
     ctx.translate(centerX, centerY);
     ctx.rotate((pipe.rotation * Math.PI) / 2);
 
-    ctx.strokeStyle = pipe.connected ? 'hsl(142, 76%, 36%)' : 'hsl(220, 10%, 50%)'; // green-600 for connected, muted for disconnected
-    ctx.lineWidth = 4;
+    const useRust = pipe.type === 'leak' || ((x * 13 + y * 7 + pipe.rotation) % 9 === 0 && pipe.type === 'straight');
+    const pipeGradient = useRust ? createRustGradient(ctx, radius) : createMetallicGradient(ctx, 0, 0, radius);
+
+    ctx.fillStyle = pipeGradient;
+    ctx.fillRect(-radius, -radius * 0.35, radius * 2, radius * 0.7);
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = cellSize * 0.06;
+    ctx.strokeRect(-radius + 3, -radius * 0.35 + 3, radius * 2 - 6, radius * 0.7 - 6);
+
+    ctx.fillStyle = 'rgba(20,28,45,0.8)';
+    ctx.fillRect(-innerR, -innerR * 0.32, innerR * 2, innerR * 0.64);
+
+    ctx.strokeStyle = pipe.connected ? '#79c3ff' : '#73839d';
+    ctx.lineWidth = 3;
     ctx.lineCap = 'round';
 
     switch (pipe.type) {
@@ -240,23 +326,26 @@ const neighborConnections = neighborDefs[neighbor.rotation % neighborDefs.length
         ctx.stroke();
         break;
       case 'valve':
-        ctx.strokeStyle = pipe.rotation === 0 ? 'hsl(0, 72%, 51%)' : 'hsl(142, 76%, 36%)'; // red-600 for closed, green-600 for open
+        ctx.strokeStyle = pipe.rotation === 0 ? '#dc4444' : '#37a46b';
+        ctx.lineWidth = cellSize * 0.1;
         ctx.beginPath();
-        ctx.arc(0, 0, radius, 0, 2 * Math.PI);
+        ctx.arc(0, 0, radius * 0.75, 0, 2 * Math.PI);
         ctx.stroke();
+        ctx.fillStyle = '#23262f';
+        ctx.fillRect(-radius * 0.12, -radius * 1.04, radius * 0.24, radius * 0.42);
         break;
       case 'pump':
-        ctx.strokeStyle = 'hsl(217, 91%, 60%)'; // blue-600
+        ctx.strokeStyle = '#3f8bff';
         ctx.beginPath();
-        ctx.arc(0, 0, radius, 0, 2 * Math.PI);
+        ctx.arc(0, 0, radius * 0.72, 0, 2 * Math.PI);
         ctx.stroke();
-        ctx.fillStyle = 'hsl(217, 91%, 60%)';
+        ctx.fillStyle = 'rgba(63,139,255,0.75)';
         ctx.fill();
         break;
       case 'leak':
-        ctx.strokeStyle = 'hsl(25, 95%, 53%)'; // orange-600
+        ctx.strokeStyle = '#f08b3b';
         ctx.beginPath();
-        ctx.arc(0, 0, radius, 0, 2 * Math.PI);
+        ctx.arc(0, 0, radius * 0.7, 0, 2 * Math.PI);
         ctx.stroke();
         break;
       case 'locked':
@@ -271,6 +360,39 @@ const neighborConnections = neighborDefs[neighbor.rotation % neighborDefs.length
         break;
     }
 
+    const defs = PIPE_CONNECTIONS[pipe.type as keyof typeof PIPE_CONNECTIONS];
+    const connections = defs[pipe.rotation % defs.length];
+    connections.forEach((isOpen, dir) => {
+      if (isOpen) {
+        drawFlange(ctx, dir, cellSize, pipe.connected);
+      }
+    });
+
+    if (flowAnim && pipe.connected && pipe.flowPhase !== undefined) {
+      const phase = pipe.flowPhase;
+      ctx.strokeStyle = `rgba(105,190,255,${0.35 + Math.sin(phase * Math.PI * 4) * 0.28})`;
+      ctx.shadowColor = 'rgba(105,190,255,0.55)';
+      ctx.shadowBlur = 10;
+      ctx.lineWidth = innerR * 0.7;
+      ctx.setLineDash([cellSize * 0.38, cellSize * 0.58]);
+      ctx.lineDashOffset = -phase * cellSize * 2;
+      ctx.beginPath();
+      connections.forEach((isOpen, dir) => {
+        if (!isOpen) return;
+        const target = [
+          { x: 0, y: -radius },
+          { x: radius, y: 0 },
+          { x: 0, y: radius },
+          { x: -radius, y: 0 }
+        ][dir];
+        ctx.moveTo(0, 0);
+        ctx.lineTo(target.x, target.y);
+      });
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.shadowBlur = 0;
+    }
+
     ctx.restore();
   };
 
@@ -282,15 +404,25 @@ const neighborConnections = neighborDefs[neighbor.rotation % neighborDefs.length
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Draw lava cavern background
+    // Draw industrial cavern background
     const bg = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-    bg.addColorStop(0, 'hsl(14, 65%, 10%)');
-    bg.addColorStop(1, 'hsl(220, 18%, 7%)');
+    bg.addColorStop(0, '#0f172a');
+    bg.addColorStop(1, '#020617');
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+    ctx.shadowColor = 'rgba(0,0,0,0.8)';
+    ctx.shadowBlur = 24;
+    ctx.shadowOffsetX = 8;
+    ctx.shadowOffsetY = 10;
+    ctx.fillStyle = 'rgba(30,40,60,0.4)';
+    ctx.fillRect(GRID_PADDING - 10, GRID_PADDING - 10, gameState.gridSize * CELL_SIZE + 20, gameState.gridSize * CELL_SIZE + 20);
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+
     // Draw grid lines with theme colors
-    ctx.strokeStyle = 'hsla(20, 62%, 42%, 0.28)';
+    ctx.strokeStyle = 'rgba(120,140,180,0.16)';
     ctx.lineWidth = 1;
     for (let i = 0; i <= gameState.gridSize; i++) {
       ctx.beginPath();
@@ -307,12 +439,14 @@ const neighborConnections = neighborDefs[neighbor.rotation % neighborDefs.length
     // Draw pipes
     for (let y = 0; y < gameState.gridSize; y++) {
       for (let x = 0; x < gameState.gridSize; x++) {
-        drawPipe(ctx, x, y, gameState.grid[y][x], CELL_SIZE);
+        const pipe = gameState.grid[y][x];
+        const isFlowing = gameState.flowPath?.some((pos) => pos.x === x && pos.y === y) ?? false;
+        drawPipe(ctx, x, y, pipe, CELL_SIZE, GRID_PADDING, isFlowing);
       }
     }
 
     // Highlight start and end lava gates
-    ctx.fillStyle = 'hsla(28, 96%, 58%, 0.28)';
+    ctx.fillStyle = 'hsla(28, 96%, 58%, 0.18)';
     ctx.fillRect(
       gameState.startPos.x * CELL_SIZE + GRID_PADDING,
       gameState.startPos.y * CELL_SIZE + GRID_PADDING,
@@ -348,8 +482,15 @@ const neighborConnections = neighborDefs[neighbor.rotation % neighborDefs.length
       const pipe = gameState.grid[gridY][gridX];
       if (!pipe.locked) {
         const defs = PIPE_CONNECTIONS[pipe.type as keyof typeof PIPE_CONNECTIONS];
-pipe.rotation = (pipe.rotation + 1) % defs.length;
-        setGameState(prev => prev ? { ...prev, moves: prev.moves + 1 } : null);
+        pipe.rotation = (pipe.rotation + 1) % defs.length;
+        setGameState(prev => prev ? {
+          ...prev,
+          moves: prev.moves + 1,
+          solved: false,
+          flowPath: null,
+          flowProgress: 0,
+          grid: prev.grid.map((row) => row.map((currentPipe) => ({ ...currentPipe, connected: false, flowPhase: 0 })))
+        } : null);
       }
     }
   };
@@ -357,9 +498,16 @@ pipe.rotation = (pipe.rotation + 1) % defs.length;
   const checkSolution = useCallback(() => {
     if (!gameState) return;
 
-    const solved = checkConnections(gameState.grid, gameState.startPos, gameState.endPos);
-    if (solved && !gameState.solved) {
-      setGameState(prev => prev ? { ...prev, solved: true } : null);
+    const path = findConnectedPath(gameState.grid, gameState.startPos, gameState.endPos);
+    if (path && !gameState.solved) {
+      setGameState(prev => prev ? {
+        ...prev,
+        solved: true,
+        flowPath: path,
+        flowProgress: 0,
+        grid: prev.grid.map((row) => row.map((pipe) => ({ ...pipe, connected: false, flowPhase: 0 })))
+      } : null);
+      setFlowAnimating(true);
       const finalScore = calculateScore(gameState.moves, gameState.timeElapsed, gameState.level);
       setScore(finalScore);
       const rewardXp = Math.max(30, Math.round(finalScore / 12));
@@ -370,6 +518,46 @@ pipe.rotation = (pipe.rotation + 1) % defs.length;
       submitGameResult(gameState.level, gameState.moves, gameState.timeElapsed, true);
     }
   }, [gameState]);
+
+  useEffect(() => {
+    if (!flowAnimating || !gameState?.flowPath) return;
+
+    const startedAt = performance.now();
+    const duration = 1800;
+
+    const animate = (time: number) => {
+      const progress = Math.min((time - startedAt) / duration, 1);
+      setGameState((prev) => {
+        if (!prev?.flowPath) return prev;
+        const pathLength = prev.flowPath.length;
+        const grid = prev.grid.map((row) => row.map((pipe) => ({ ...pipe, connected: false, flowPhase: 0 })));
+        prev.flowPath.forEach((pos, idx) => {
+          const segmentProgress = Math.max(0, Math.min(1, (progress - idx / pathLength) * pathLength));
+          grid[pos.y][pos.x].flowPhase = segmentProgress;
+          grid[pos.y][pos.x].connected = segmentProgress > 0;
+        });
+        return {
+          ...prev,
+          flowProgress: progress,
+          grid
+        };
+      });
+
+      if (progress < 1) {
+        animationRef.current = requestAnimationFrame(animate);
+      } else {
+        setFlowAnimating(false);
+      }
+    };
+
+    animationRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (animationRef.current !== null) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, [flowAnimating, gameState?.flowPath]);
 
   useEffect(() => {
     if (gameState && !gameState.solved) {
@@ -388,7 +576,7 @@ pipe.rotation = (pipe.rotation + 1) % defs.length;
     if (!user?.id) return;
 
     try {
-      await (supabase as any).from('plumber_puzzle_sessions').insert({
+      await supabase.from('plumber_puzzle_sessions').insert({
         user_id: user.id,
         level,
         grid_size: gameState?.gridSize ?? 6,
@@ -409,6 +597,7 @@ pipe.rotation = (pipe.rotation + 1) % defs.length;
     setIsPlaying(true);
     setTimer(0);
     setScore(0);
+    setFlowAnimating(false);
   };
 
   const resetGame = () => {
