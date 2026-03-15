@@ -24,6 +24,7 @@ type Bubble = {
 
 const ENERGY_FALLBACK_MAX = 100;
 const TAP_THROTTLE_MS = 80;
+const ROUND_DURATION_MS = 10_000;
 const XP_BUBBLE_VALUE = 2;
 
 export function BixTapGame({ onFinish }: Props) {
@@ -33,11 +34,65 @@ export function BixTapGame({ onFinish }: Props) {
   const [bubbleSeed, setBubbleSeed] = useState(0);
   const [pulseSeed, setPulseSeed] = useState(0);
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
-  const [isSubmittingTap, setIsSubmittingTap] = useState(false);
+  const [roundScore, setRoundScore] = useState(0);
+  const [isStartingSession, setIsStartingSession] = useState(false);
+  const [isSubmittingRound, setIsSubmittingRound] = useState(false);
 
   const [errorText, setErrorText] = useState<string | null>(null);
   const tapAreaRef = useRef<HTMLButtonElement | null>(null);
   const lastTapAtRef = useRef(0);
+  const activeSessionIdRef = useRef<string | null>(null);
+  const roundTimeoutRef = useRef<number | null>(null);
+  const roundScoreRef = useRef(0);
+
+  const clearRoundTimeout = () => {
+    if (roundTimeoutRef.current) {
+      window.clearTimeout(roundTimeoutRef.current);
+      roundTimeoutRef.current = null;
+    }
+  };
+
+  const resetRoundState = () => {
+    clearRoundTimeout();
+    activeSessionIdRef.current = null;
+    roundScoreRef.current = 0;
+    setRoundScore(0);
+  };
+
+  const finalizeRound = async () => {
+    const sessionId = activeSessionIdRef.current;
+    const finalScore = roundScoreRef.current;
+    if (!sessionId || finalScore <= 0 || isSubmittingRound) {
+      return;
+    }
+
+    setIsSubmittingRound(true);
+
+    try {
+      const result = await submitMiniGameScore(sessionId, finalScore, { input: "tap", taps: finalScore });
+
+      setEnergy(result.energy_remaining);
+      setXpTotal((current) => current + result.xp_earned);
+      onFinish({ rawScore: result.raw_score, estimatedXp: result.xp_earned });
+      setErrorText(null);
+      resetRoundState();
+    } catch (error) {
+      setErrorText(error instanceof Error ? error.message : "Could not submit BIXTap score.");
+
+      try {
+        const overview = await getMiniGamesOverview();
+        setXpTotal(overview.stats.total_xp_from_games);
+        setEnergy(overview.energy);
+        setMaxEnergy(overview.max_energy);
+      } catch {
+        // Preserve original error text when fallback refresh fails.
+      }
+
+      resetRoundState();
+    } finally {
+      setIsSubmittingRound(false);
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -60,15 +115,15 @@ export function BixTapGame({ onFinish }: Props) {
 
     return () => {
       isMounted = false;
+      clearRoundTimeout();
     };
   }, []);
 
   const handleTap = async (event: PointerEvent<HTMLButtonElement>) => {
     const now = Date.now();
-    if (isSubmittingTap || energy <= 0 || now - lastTapAtRef.current < TAP_THROTTLE_MS) return;
+    if (isSubmittingRound || isStartingSession || energy <= 0 || now - lastTapAtRef.current < TAP_THROTTLE_MS) return;
 
     lastTapAtRef.current = now;
-    setIsSubmittingTap(true);
     setErrorText(null);
 
     const rect = tapAreaRef.current?.getBoundingClientRect();
@@ -85,23 +140,34 @@ export function BixTapGame({ onFinish }: Props) {
       duration: 0.8 + Math.random() * 0.4,
     };
 
+    setBubbleSeed(nextSeed);
+    setPulseSeed((value) => value + 1);
+    setBubbles((current) => [...current, bubble]);
+
+    window.setTimeout(() => {
+      setBubbles((current) => current.filter((item) => item.id !== bubble.id));
+    }, bubble.duration * 1000 + 50);
+
     try {
-      const session = await startMiniGameSession("bixtap", { input: "tap" });
-      const result = await submitMiniGameScore(session.session_id, 1, { input: "tap" });
+      if (!activeSessionIdRef.current) {
+        setIsStartingSession(true);
+        const session = await startMiniGameSession("bixtap", { input: "tap" });
+        activeSessionIdRef.current = session.session_id;
+        setEnergy(session.energy_remaining);
+      }
 
-      setBubbleSeed(nextSeed);
-      setPulseSeed((value) => value + 1);
-      setBubbles((current) => [...current, bubble]);
-      setEnergy(result.energy_remaining);
-      setXpTotal((current) => current + result.xp_earned);
+      const nextScore = roundScoreRef.current + 1;
+      roundScoreRef.current = nextScore;
+      setRoundScore(nextScore);
 
-      onFinish({ rawScore: result.raw_score, estimatedXp: result.xp_earned });
-
-      window.setTimeout(() => {
-        setBubbles((current) => current.filter((item) => item.id !== bubble.id));
-      }, bubble.duration * 1000 + 50);
+      if (!roundTimeoutRef.current) {
+        roundTimeoutRef.current = window.setTimeout(() => {
+          void finalizeRound();
+        }, ROUND_DURATION_MS);
+      }
     } catch (error) {
       setErrorText(error instanceof Error ? error.message : "Tap failed. Please retry.");
+      resetRoundState();
 
       try {
         const overview = await getMiniGamesOverview();
@@ -112,7 +178,7 @@ export function BixTapGame({ onFinish }: Props) {
         // Preserve original error text when fallback refresh fails.
       }
     } finally {
-      setIsSubmittingTap(false);
+      setIsStartingSession(false);
     }
   };
 
@@ -129,7 +195,7 @@ export function BixTapGame({ onFinish }: Props) {
         onPointerDown={(event) => {
           void handleTap(event);
         }}
-        disabled={energy <= 0 || isSubmittingTap}
+        disabled={energy <= 0 || isStartingSession || isSubmittingRound}
         style={{ touchAction: "manipulation" }}
         className="relative mt-4 flex flex-1 items-center justify-center overflow-hidden rounded-2xl border border-cyan-300/25 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.24),rgba(15,23,42,1))]"
       >
@@ -161,6 +227,12 @@ export function BixTapGame({ onFinish }: Props) {
           <div className="h-[240px] w-[240px] rounded-full border-4 border-cyan-100/60 bg-gradient-to-br from-cyan-300/60 via-sky-300/20 to-slate-900 shadow-[0_0_90px_-18px_rgba(34,211,238,1)]" />
           <img src="/bixgain.png" alt="Tap BIX coin" className="absolute inset-[14%] h-[72%] w-[72%] rounded-full object-cover" />
         </motion.div>
+
+        {roundScore > 0 ? (
+          <div className="absolute top-4 rounded-full border border-cyan-200/30 bg-slate-900/90 px-3 py-1 text-xs text-cyan-100">
+            {`Round taps: ${roundScore}`}
+          </div>
+        ) : null}
 
         {energy <= 0 ? (
           <div className="absolute bottom-4 rounded-full border border-cyan-200/30 bg-slate-900/90 px-3 py-1 text-xs text-cyan-100">
