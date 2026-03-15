@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import DragonMascot from '@/components/DragonMascot';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -279,12 +280,15 @@ export function PlumberPuzzleGame() {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Draw dark theme background
-    ctx.fillStyle = 'hsl(220, 18%, 7%)'; // card background color
+    // Draw lava cavern background
+    const bg = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+    bg.addColorStop(0, 'hsl(14, 65%, 10%)');
+    bg.addColorStop(1, 'hsl(220, 18%, 7%)');
+    ctx.fillStyle = bg;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // Draw grid lines with theme colors
-    ctx.strokeStyle = 'hsl(220, 14%, 14%)'; // border color
+    ctx.strokeStyle = 'hsla(20, 62%, 42%, 0.28)';
     ctx.lineWidth = 1;
     for (let i = 0; i <= gameState.gridSize; i++) {
       ctx.beginPath();
@@ -305,8 +309,8 @@ export function PlumberPuzzleGame() {
       }
     }
 
-    // Highlight start and end with theme colors
-    ctx.fillStyle = 'hsla(142, 76%, 36%, 0.3)'; // green-600 with opacity
+    // Highlight start and end lava gates
+    ctx.fillStyle = 'hsla(28, 96%, 58%, 0.28)';
     ctx.fillRect(
       gameState.startPos.x * CELL_SIZE + GRID_PADDING,
       gameState.startPos.y * CELL_SIZE + GRID_PADDING,
@@ -355,7 +359,9 @@ export function PlumberPuzzleGame() {
       setGameState(prev => prev ? { ...prev, solved: true } : null);
       const finalScore = calculateScore(gameState.moves, gameState.timeElapsed, gameState.level);
       setScore(finalScore);
-      toast.success(`Puzzle solved! Score: ${finalScore}`);
+      const rewardXp = Math.max(30, Math.round(finalScore / 12));
+      const rewardBix = rewardXp / 10000;
+      toast.success(`Treasure unlocked! Score: ${finalScore} • +${rewardXp} XP • +${rewardBix.toFixed(4)} BIX`);
 
       // Send to backend
       submitGameResult(gameState.level, gameState.moves, gameState.timeElapsed, true);
@@ -442,7 +448,8 @@ export function PlumberPuzzleGame() {
       <div className="glass rounded-2xl p-6 space-y-4">
         <div className="flex items-center gap-2 mb-4">
           <Zap className="h-6 w-6 text-primary" />
-          <h3 className="text-xl font-semibold">Plumber Puzzle Game</h3>
+          <h3 className="text-xl font-semibold">Dragon Treasure Puzzle</h3>
+          <DragonMascot mood="idle" size="sm" className="ml-auto" title="Puzzle Dragon" />
         </div>
 
         {!isPlaying ? (
@@ -509,6 +516,7 @@ export function PlumberPuzzleGame() {
               <div className="text-center space-y-4 p-6 rounded-xl border border-primary/30 bg-primary/10">
                 <h3 className="text-2xl font-bold text-primary">Puzzle Solved!</h3>
                 <p className="text-lg">Score: <span className="text-gradient-gold font-bold">{score}</span></p>
+                <p className="text-sm text-muted-foreground">Treasure reward unlocked: XP + BIX.</p>
                 <Button onClick={() => startGame((gameState.level || 1) + 1)} className="bg-gradient-gold text-primary-foreground font-semibold">
                   Next Level
                 </Button>
@@ -516,7 +524,7 @@ export function PlumberPuzzleGame() {
             )}
 
             <div className="text-sm text-muted-foreground text-center">
-              Click pipes to rotate them. Connect the green highlighted pipes to complete the puzzle.
+              Rotate lava tunnels to guide flow from dragon gate to treasure gate.
             </div>
           </div>
         )}

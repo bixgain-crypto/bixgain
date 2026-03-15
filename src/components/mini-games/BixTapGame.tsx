@@ -1,4 +1,5 @@
 import { getMiniGamesOverview, startMiniGameSession, submitMiniGameScore } from "@/lib/miniGamesApi";
+import DragonMascot from "@/components/DragonMascot";
 import { formatXp } from "@/lib/progression";
 import { motion } from "framer-motion";
 import { useEffect, useRef, useState, type PointerEvent } from "react";
@@ -20,11 +21,14 @@ type Bubble = {
   driftX: number;
   size: number;
   duration: number;
+  critical: boolean;
+  text: string;
 };
 
 const ENERGY_FALLBACK_MAX = 100;
 const TAP_THROTTLE_MS = 80;
 const XP_BUBBLE_VALUE = 2;
+const COMBO_WINDOW_MS = 1100;
 
 export function BixTapGame({ onFinish }: Props) {
   const [xpTotal, setXpTotal] = useState(0);
@@ -34,6 +38,10 @@ export function BixTapGame({ onFinish }: Props) {
   const [pulseSeed, setPulseSeed] = useState(0);
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [isSubmittingTap, setIsSubmittingTap] = useState(false);
+  const [combo, setCombo] = useState(0);
+  const [maxCombo, setMaxCombo] = useState(0);
+  const [criticalHits, setCriticalHits] = useState(0);
+  const [coinBursts, setCoinBursts] = useState(0);
 
   const [errorText, setErrorText] = useState<string | null>(null);
   const tapAreaRef = useRef<HTMLButtonElement | null>(null);
@@ -67,6 +75,7 @@ export function BixTapGame({ onFinish }: Props) {
     const now = Date.now();
     if (isSubmittingTap || energy <= 0 || now - lastTapAtRef.current < TAP_THROTTLE_MS) return;
 
+    const previousTapAt = lastTapAtRef.current;
     lastTapAtRef.current = now;
     setIsSubmittingTap(true);
     setErrorText(null);
@@ -76,6 +85,11 @@ export function BixTapGame({ onFinish }: Props) {
     const y = rect ? event.clientY - rect.top : 0;
 
     const nextSeed = bubbleSeed + 1;
+    const comboCount = now - previousTapAt <= COMBO_WINDOW_MS ? combo + 1 : 1;
+    const comboMultiplier = comboCount >= 20 ? 4 : comboCount >= 10 ? 3 : comboCount >= 5 ? 2 : 1;
+    const critical = Math.random() < 0.14;
+    const scoreUnits = comboMultiplier + (critical ? 1 : 0);
+
     const bubble: Bubble = {
       id: nextSeed,
       x: x || (rect ? rect.width / 2 : 0),
@@ -83,17 +97,34 @@ export function BixTapGame({ onFinish }: Props) {
       driftX: Math.random() * 42 - 21,
       size: 16 + Math.random() * 8,
       duration: 0.8 + Math.random() * 0.4,
+      critical,
+      text: critical ? `CRIT x${scoreUnits}` : `x${scoreUnits}`,
     };
 
     try {
       const session = await startMiniGameSession("bixtap", { input: "tap" });
-      const result = await submitMiniGameScore(session.session_id, 1, { input: "tap" });
+      const result = await submitMiniGameScore(session.session_id, scoreUnits, {
+        input: "dragon-fire-tap",
+        combo: comboCount,
+        multiplier: comboMultiplier,
+        critical,
+      });
 
       setBubbleSeed(nextSeed);
       setPulseSeed((value) => value + 1);
       setBubbles((current) => [...current, bubble]);
       setEnergy(result.energy_remaining);
       setXpTotal((current) => current + result.xp_earned);
+      setCombo(comboCount);
+      setMaxCombo((current) => Math.max(current, comboCount));
+
+      if (critical) {
+        setCriticalHits((current) => current + 1);
+      }
+
+      if (comboCount % 10 === 0) {
+        setCoinBursts((current) => current + 1);
+      }
 
       onFinish({ rawScore: result.raw_score, estimatedXp: result.xp_earned });
 
@@ -111,6 +142,7 @@ export function BixTapGame({ onFinish }: Props) {
       } catch {
         // Preserve original error text when fallback refresh fails.
       }
+      setCombo(0);
     } finally {
       setIsSubmittingTap(false);
     }
@@ -121,6 +153,13 @@ export function BixTapGame({ onFinish }: Props) {
       <div className="flex items-center justify-between rounded-xl border border-cyan-200/20 bg-slate-900/80 px-4 py-3 text-sm font-semibold">
         <p>{`XP: ${formatXp(xpTotal)}`}</p>
         <p>{`Energy: ${energy} / ${maxEnergy}`}</p>
+      </div>
+
+      <div className="mt-3 grid grid-cols-4 gap-2 rounded-xl border border-cyan-200/20 bg-slate-900/70 px-3 py-2 text-[11px]">
+        <p>{`Combo: ${combo}`}</p>
+        <p>{`Best: ${maxCombo}`}</p>
+        <p>{`Crit: ${criticalHits}`}</p>
+        <p>{`Bursts: ${coinBursts}`}</p>
       </div>
 
       <button
@@ -147,7 +186,7 @@ export function BixTapGame({ onFinish }: Props) {
             >
               <img src="/bixgain.png" alt="BixGain" className="h-[70%] w-[70%] rounded-full object-cover" />
             </span>
-            <span>{`+${XP_BUBBLE_VALUE} XP`}</span>
+            <span className={bubble.critical ? "text-amber-300" : "text-cyan-50"}>{`${bubble.text} • +${XP_BUBBLE_VALUE} XP`}</span>
           </motion.div>
         ))}
 
@@ -159,7 +198,9 @@ export function BixTapGame({ onFinish }: Props) {
           className="relative"
         >
           <div className="h-[240px] w-[240px] rounded-full border-4 border-cyan-100/60 bg-gradient-to-br from-cyan-300/60 via-sky-300/20 to-slate-900 shadow-[0_0_90px_-18px_rgba(34,211,238,1)]" />
-          <img src="/bixgain.png" alt="Tap BIX coin" className="absolute inset-[14%] h-[72%] w-[72%] rounded-full object-cover" />
+          <div className="absolute inset-[14%] flex items-center justify-center rounded-full border border-cyan-100/45 bg-slate-900/35">
+            <DragonMascot mood={combo >= 20 ? "rage" : "fire"} size="lg" title="Dragon Fire Tap" />
+          </div>
         </motion.div>
 
         {energy <= 0 ? (
@@ -170,6 +211,7 @@ export function BixTapGame({ onFinish }: Props) {
       </button>
 
       {errorText ? <p className="mt-3 text-center text-xs text-red-300">{errorText}</p> : null}
+      <p className="mt-2 text-center text-xs text-cyan-200/80">Tap to breathe fire. Combo 5=2x, 10=3x, 20=Dragon Rage.</p>
     </div>
   );
 }
