@@ -168,7 +168,8 @@ export function PlumberPuzzleGame() {
       visited.add(key);
 
       const pipe = grid[current.y][current.x];
-      const connections = PIPE_CONNECTIONS[pipe.type as keyof typeof PIPE_CONNECTIONS][pipe.rotation];
+      const pipeDefs = PIPE_CONNECTIONS[pipe.type as keyof typeof PIPE_CONNECTIONS];
+const connections = pipeDefs[pipe.rotation % pipeDefs.length];
 
       // Check all four directions
       const directions = [
@@ -184,7 +185,8 @@ export function PlumberPuzzleGame() {
           const ny = current.y + directions[i].dy;
           if (nx >= 0 && nx < grid[0].length && ny >= 0 && ny < grid.length) {
             const neighbor = grid[ny][nx];
-            const neighborConnections = PIPE_CONNECTIONS[neighbor.type as keyof typeof PIPE_CONNECTIONS][neighbor.rotation];
+            const neighborDefs = PIPE_CONNECTIONS[neighbor.type as keyof typeof PIPE_CONNECTIONS];
+const neighborConnections = neighborDefs[neighbor.rotation % neighborDefs.length];
             if (neighborConnections[(i + 2) % 4]) { // Check opposite direction
               queue.push({ x: nx, y: ny });
             }
@@ -345,7 +347,8 @@ export function PlumberPuzzleGame() {
     if (gridX >= 0 && gridX < gameState.gridSize && gridY >= 0 && gridY < gameState.gridSize) {
       const pipe = gameState.grid[gridY][gridX];
       if (!pipe.locked) {
-        pipe.rotation = (pipe.rotation + 1) % 4;
+        const defs = PIPE_CONNECTIONS[pipe.type as keyof typeof PIPE_CONNECTIONS];
+pipe.rotation = (pipe.rotation + 1) % defs.length;
         setGameState(prev => prev ? { ...prev, moves: prev.moves + 1 } : null);
       }
     }
