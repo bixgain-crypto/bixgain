@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import DragonMascot from "@/components/DragonMascot";
 import { cn } from "@/lib/utils";
 import { Gauge, Trophy, Zap } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -56,6 +57,9 @@ type ArenaState = {
   rafHandle: number;
   gameFinished: boolean;
   gameFinishedSent: boolean;
+  fireBursts: Array<{ x: number; y: number; ttl: number; strength: number }>;
+  playerCoinStreak: number;
+  playerRageTimer: number;
 };
 
 type ArenaLeaderboardRow = {
@@ -72,6 +76,8 @@ type ArenaHud = {
   length: number;
   longestLength: number;
   boosting: boolean;
+  rageMode: boolean;
+  streak: number;
   leaderboard: ArenaLeaderboardRow[];
 };
 
@@ -109,6 +115,10 @@ const MAX_TOTAL_SNAKES = 20;
 const INITIAL_BOT_MIN = 8;
 const INITIAL_BOT_MAX = 15;
 const HUD_SYNC_MS = 120;
+const RAGE_STREAK_THRESHOLD = 10;
+const RAGE_DURATION_SECONDS = 6;
+const WING_UNLOCK_LENGTH = 36;
+const RAGE_SPEED_MULTIPLIER = 1.22;
 
 const BOT_NAMES = [
   "NeonByte",
@@ -135,9 +145,9 @@ const FOOD_CONFIG: Record<
   FoodKind,
   { xp: number; radius: number; color: string; glow: string; growth: number }
 > = {
-  normal: { xp: 10, radius: 4, color: "#38bdf8", glow: "rgba(56,189,248,0.65)", growth: 1 },
-  golden: { xp: 50, radius: 6, color: "#facc15", glow: "rgba(250,204,21,0.72)", growth: 3 },
-  mega: { xp: 100, radius: 7, color: "#fb7185", glow: "rgba(251,113,133,0.8)", growth: 5 },
+  normal: { xp: 10, radius: 4, color: "#f59e0b", glow: "rgba(245,158,11,0.62)", growth: 1 },
+  golden: { xp: 50, radius: 6, color: "#fcd34d", glow: "rgba(252,211,77,0.76)", growth: 3 },
+  mega: { xp: 100, radius: 7, color: "#fb923c", glow: "rgba(251,146,60,0.82)", growth: 5 },
 };
 
 function clamp(value: number, min: number, max: number): number {
@@ -384,7 +394,8 @@ function updateSnakeMotion(state: ArenaState, snake: Snake, dt: number) {
     snake.boostTimer = Math.max(0, snake.boostTimer - dt);
   }
 
-  const speed = snake.baseSpeed * (shouldBoost ? BOOST_MULTIPLIER : 1);
+  const rageMultiplier = isPlayer && state.playerRageTimer > 0 ? RAGE_SPEED_MULTIPLIER : 1;
+  const speed = snake.baseSpeed * (shouldBoost ? BOOST_MULTIPLIER : 1) * rageMultiplier;
   snake.dir = rotateTowards(snake.dir, snake.targetDir, snake.turnRate * dt);
   const directionVector = vectorFromAngle(snake.dir);
 
@@ -422,9 +433,19 @@ function resolveFoodEats(state: ArenaState) {
       const food = state.foods[i];
       const eatRadius = HEAD_RADIUS + food.radius;
       if (distanceSquared(head, { x: food.x, y: food.y }) <= eatRadius * eatRadius) {
-        snake.xp += food.xp;
+        const xpGain = snake.id === state.playerId && state.playerRageTimer > 0 ? food.xp * 2 : food.xp;
+        snake.xp += xpGain;
         snake.rawScoreUnits += Math.floor(food.xp / 10);
         snake.growth += food.growth;
+
+        if (snake.id === state.playerId) {
+          state.playerCoinStreak += 1;
+          state.fireBursts.push({ x: food.x, y: food.y, ttl: 0.48, strength: 1 + food.radius / 4 });
+          if (state.playerCoinStreak >= RAGE_STREAK_THRESHOLD) {
+            state.playerRageTimer = RAGE_DURATION_SECONDS;
+          }
+        }
+
         state.foods.splice(i, 1);
       }
     }
@@ -686,6 +707,15 @@ function updateArena(state: ArenaState, dt: number) {
     state.botSpawnTimer = randomInRange(0.75, 1.25);
     maintainPopulation(state);
   }
+
+  state.playerRageTimer = Math.max(0, state.playerRageTimer - dt);
+  if (state.playerRageTimer === 0) {
+    state.playerCoinStreak = Math.min(state.playerCoinStreak, RAGE_STREAK_THRESHOLD - 1);
+  }
+
+  state.fireBursts = state.fireBursts
+    .map((burst) => ({ ...burst, ttl: burst.ttl - dt }))
+    .filter((burst) => burst.ttl > 0);
 }
 
 function worldToScreen(point: Vec2, camera: Vec2): Vec2 {
@@ -762,7 +792,23 @@ function renderArena(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, s
     ctx.fillStyle = food.color;
     ctx.arc(screen.x, screen.y, food.radius, 0, Math.PI * 2);
     ctx.fill();
+
+    ctx.fillStyle = "rgba(120,53,15,0.82)";
+    ctx.font = `${Math.max(8, food.radius * 2)}px ui-sans-serif, system-ui`;
+    ctx.textAlign = "center";
+    ctx.fillText("₿", screen.x, screen.y + 2);
   }
+
+  for (const burst of state.fireBursts) {
+    const screen = worldToScreen({ x: burst.x, y: burst.y }, camera);
+    const alpha = burst.ttl / 0.48;
+    ctx.globalAlpha = Math.max(0, alpha);
+    ctx.fillStyle = "rgba(251,146,60,0.9)";
+    ctx.beginPath();
+    ctx.arc(screen.x, screen.y, 8 + (1 - alpha) * 24 * burst.strength, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
 
   const snakes = state.snakes.filter((snake) => snake.alive);
   for (const snake of snakes) {
@@ -773,18 +819,58 @@ function renderArena(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, s
 
       const isHead = i === 0;
       const radius = isHead ? HEAD_RADIUS : BODY_RADIUS;
+      const isPlayer = snake.id === state.playerId;
       ctx.beginPath();
       ctx.globalAlpha = isHead ? 1 : 0.85;
-      ctx.fillStyle = snake.color;
+      ctx.fillStyle = isPlayer
+        ? isHead
+          ? "#f59e0b"
+          : i % 2 === 0
+          ? "#fcd34d"
+          : "#f59e0b"
+        : snake.color;
       ctx.arc(screen.x, screen.y, radius, 0, Math.PI * 2);
       ctx.fill();
 
-      if (isHead && snake.id === state.playerId) {
+      if (isHead && isPlayer) {
         ctx.beginPath();
         ctx.globalAlpha = 0.35;
         ctx.fillStyle = "#fde68a";
         ctx.arc(screen.x, screen.y, radius + 4, 0, Math.PI * 2);
         ctx.fill();
+
+        const eyesDistance = 3;
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = "#111827";
+        ctx.beginPath();
+        ctx.arc(screen.x - eyesDistance, screen.y - 1, 1.2, 0, Math.PI * 2);
+        ctx.arc(screen.x + eyesDistance, screen.y - 1, 1.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (state.playerRageTimer > 0) {
+          ctx.globalAlpha = 0.35;
+          ctx.fillStyle = "#fb923c";
+          ctx.beginPath();
+          ctx.arc(screen.x, screen.y, radius + 9, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        if (snake.longestLength >= WING_UNLOCK_LENGTH) {
+          ctx.globalAlpha = 0.7;
+          ctx.fillStyle = "rgba(251,191,36,0.8)";
+          ctx.beginPath();
+          ctx.moveTo(screen.x - radius, screen.y - 1);
+          ctx.lineTo(screen.x - radius - 10, screen.y - 12);
+          ctx.lineTo(screen.x - radius - 2, screen.y + 6);
+          ctx.closePath();
+          ctx.fill();
+          ctx.beginPath();
+          ctx.moveTo(screen.x + radius, screen.y - 1);
+          ctx.lineTo(screen.x + radius + 10, screen.y - 12);
+          ctx.lineTo(screen.x + radius + 2, screen.y + 6);
+          ctx.closePath();
+          ctx.fill();
+        }
       }
     }
 
@@ -817,6 +903,9 @@ function buildInitialState(playerName: string): ArenaState {
     rafHandle: 0,
     gameFinished: false,
     gameFinishedSent: false,
+    fireBursts: [],
+    playerCoinStreak: 0,
+    playerRageTimer: 0,
   };
 
   state.snakes.push(createPlayerSnake(playerName));
@@ -847,6 +936,8 @@ function snapshotHud(state: ArenaState): ArenaHud {
     length,
     longestLength: player?.longestLength || length,
     boosting: !!player?.boostHold,
+    rageMode: state.playerRageTimer > 0,
+    streak: state.playerCoinStreak,
     leaderboard: computeLeaderboard(state),
   };
 }
@@ -862,6 +953,8 @@ export function BixSnakeArenaGame({ onFinish, playerName = "Player", className }
     length: PLAYER_START_SEGMENTS,
     longestLength: PLAYER_START_SEGMENTS,
     boosting: false,
+    rageMode: false,
+    streak: 0,
     leaderboard: [],
   });
 
@@ -1027,6 +1120,14 @@ export function BixSnakeArenaGame({ onFinish, playerName = "Player", className }
         </div>
       </div>
 
+      <div className="flex items-center justify-between rounded-xl border border-amber-300/35 bg-amber-500/10 px-4 py-3">
+        <div>
+          <p className="text-xs uppercase tracking-wider text-amber-200/80">Dragon Rage</p>
+          <p className="text-sm text-amber-100">{`Streak ${hud.streak}/${RAGE_STREAK_THRESHOLD} • ${hud.rageMode ? "Rage active: speed + reward boost" : "Collect coins for rage mode"}`}</p>
+        </div>
+        <DragonMascot mood={hud.rageMode ? "rage" : "fire"} size="sm" />
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_18rem] gap-4">
         <div
           ref={hostRef}
@@ -1037,7 +1138,7 @@ export function BixSnakeArenaGame({ onFinish, playerName = "Player", className }
         >
           <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
           <div className="absolute top-3 left-3 rounded-lg border border-border/60 bg-background/55 backdrop-blur-sm px-3 py-2 text-xs text-muted-foreground">
-            Swipe to steer. Hold boost to move faster but lose mass.
+            Dragon Arena: collect BIX coins, trigger fire bursts, and hit streak 10 for rage mode.
           </div>
           <div className="absolute bottom-3 right-3">
             <Button

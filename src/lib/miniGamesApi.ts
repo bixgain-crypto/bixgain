@@ -87,6 +87,23 @@ export type MiniGameProfileStats = {
   best_score_per_game: Record<string, number>;
 };
 
+export const MINI_GAME_DAILY_LIMITS: Record<string, number> = {
+  bixsnake_arena: 5,
+  bixtap: 10,
+  plumber_puzzle: 5,
+};
+
+export function validateMiniGameClientScore(gameSlug: string, rawScore: number): number {
+  const normalized = Math.max(0, Math.floor(rawScore));
+  const hardMaxByGame: Record<string, number> = {
+    bixsnake_arena: 120000,
+    bixtap: 300,
+    plumber_puzzle: 20000,
+  };
+  const hardMax = hardMaxByGame[gameSlug] ?? 100000;
+  return Math.min(normalized, hardMax);
+}
+
 function asNumber(value: unknown): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;

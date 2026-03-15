@@ -24,6 +24,14 @@ type Props = {
 
 export function GameResultPanel({ gameResult, displayXp, displayBix, onSubmitScore, onPlayAgain, onReturnToList }: Props) {
   const verified = gameResult.verified;
+  const dragonLevel = Math.max(1, Math.floor(displayXp / 300) + 1);
+  const unlockText = dragonLevel >= 10
+    ? "Golden dragon skin unlocked"
+    : dragonLevel >= 5
+    ? "Wing animation unlocked"
+    : dragonLevel >= 3
+    ? "Fire effect unlocked"
+    : "Keep playing to unlock dragon upgrades";
 
   return (
     <div className="rounded-xl border border-border/60 bg-secondary/25 p-4 space-y-4">
@@ -60,10 +68,17 @@ export function GameResultPanel({ gameResult, displayXp, displayBix, onSubmitSco
           <p>{`Combo: +${formatXp(verified.bonuses.combo_bonus_xp)} XP`}</p>
           <p>{`Lucky XP: +${formatXp(verified.bonuses.lucky_bonus_xp)} XP`}</p>
           <p>{`Lucky BIX: +${verified.bonuses.lucky_bonus_bix.toFixed(4)} BIX`}</p>
+          <p className="mt-2 text-xs text-muted-foreground">Daily cap, anti-bot, and score validation checks passed.</p>
         </div>
       ) : (
         <p className="text-xs text-muted-foreground">Submit score to verify anti-abuse checks, bonuses, and lucky drop.</p>
       )}
+
+      <div className="rounded-lg border border-amber-300/30 bg-amber-500/10 p-3 text-sm">
+        <p className="font-semibold mb-1">Dragon progression</p>
+        <p>{`Dragon Level: ${dragonLevel}`}</p>
+        <p className="text-xs text-muted-foreground">{unlockText}</p>
+      </div>
 
       <div className="flex flex-wrap gap-2">
         <Button onClick={onSubmitScore} disabled={gameResult.submitting || gameResult.submitted} className="bg-gradient-gold text-primary-foreground font-semibold">
