@@ -1,269 +1,297 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { computeFlow, checkWin, rotatePipe, autoSolve } from '@/lib/pipeGame/pipeTypes';
+import type { Grid } from '@/lib/pipeGame/pipeTypes';
+import { generateLevel, getLevelConfig } from '@/lib/pipeGame/puzzleGenerator';
+import PipeTile from './PipeTile';
 
-type Direction = 'N' | 'S' | 'E' | 'W';
+type Phase = 'playing' | 'flowing' | 'won';
 
-type PipeType = 'straight' | 'corner' | 'tee' | 'cross' | 'source' | 'sink';
-
-interface Pipe {
-  type: PipeType;
-  rotation: number;
+interface GameState {
+  currentLevel: number;
+  totalXP: number;
 }
 
-interface Cell {
-  pipe: Pipe;
-  filled?: boolean;
+const STORAGE_KEY = 'bixpuzzle-plumber-state';
+
+function loadState(): GameState {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return {
+    currentLevel: 1,
+    totalXP: 0,
+  };
 }
 
-const BASE_CONNECTIONS: Record<PipeType, Direction[]> = {
-  straight: ['N', 'S'],
-  corner: ['N', 'E'],
-  tee: ['N', 'E', 'W'],
-  cross: ['N', 'E', 'S', 'W'],
-  source: ['E'],
-  sink: ['W'],
-};
-
-const ROTATE_MAP: Record<Direction, Direction> = {
-  N: 'E',
-  E: 'S',
-  S: 'W',
-  W: 'N',
-};
-
-const opposite: Record<Direction, Direction> = {
-  N: 'S',
-  S: 'N',
-  E: 'W',
-  W: 'E',
-};
-
-function rotateConnections(directions: Direction[], rotation: number) {
-  let result = [...directions];
-
-  for (let i = 0; i < rotation; i++) {
-    result = result.map((direction) => ROTATE_MAP[direction]);
-  }
-
-  return result;
-}
-
-function getConnections(pipe: Pipe) {
-  return rotateConnections(BASE_CONNECTIONS[pipe.type], pipe.rotation);
-}
-
-function randomPipe(): PipeType {
-  const types: PipeType[] = ['straight', 'corner', 'tee'];
-  return types[Math.floor(Math.random() * types.length)];
-}
-
-function generatePuzzle(size: number): Cell[][] {
-  const grid: Cell[][] = [];
-
-  for (let y = 0; y < size; y++) {
-    const row: Cell[] = [];
-
-    for (let x = 0; x < size; x++) {
-      row.push({
-        pipe: {
-          type: randomPipe(),
-          rotation: Math.floor(Math.random() * 4),
-        },
-      });
-    }
-
-    grid.push(row);
-  }
-
-  grid[0][0].pipe = { type: 'source', rotation: 0 };
-  grid[size - 1][size - 1].pipe = { type: 'sink', rotation: 0 };
-
-  return grid;
-}
-
-function checkPath(grid: Cell[][]) {
-  const size = grid.length;
-  const visited = new Set<string>();
-
-  function dfs(x: number, y: number): boolean {
-    const key = `${x}-${y}`;
-    if (visited.has(key)) return false;
-
-    visited.add(key);
-
-    const pipe = grid[y][x].pipe;
-    if (pipe.type === 'sink') return true;
-
-    const connections = getConnections(pipe);
-
-    for (const direction of connections) {
-      let nx = x;
-      let ny = y;
-
-      if (direction === 'N') ny--;
-      if (direction === 'S') ny++;
-      if (direction === 'E') nx++;
-      if (direction === 'W') nx--;
-
-      if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
-
-      const nextPipe = grid[ny][nx].pipe;
-      const nextConnections = getConnections(nextPipe);
-
-      if (nextConnections.includes(opposite[direction])) {
-        if (dfs(nx, ny)) return true;
-      }
-    }
-
-    return false;
-  }
-
-  return dfs(0, 0);
-}
-
-function simulateWater(grid: Cell[][]) {
-  const size = grid.length;
-  const visited = new Set<string>();
-  const filledCells: string[] = [];
-
-  function dfs(x: number, y: number) {
-    const key = `${x}-${y}`;
-    if (visited.has(key)) return;
-
-    visited.add(key);
-    filledCells.push(key);
-
-    const pipe = grid[y][x].pipe;
-    const connections = getConnections(pipe);
-
-    for (const direction of connections) {
-      let nx = x;
-      let ny = y;
-
-      if (direction === 'N') ny--;
-      if (direction === 'S') ny++;
-      if (direction === 'E') nx++;
-      if (direction === 'W') nx--;
-
-      if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
-
-      const nextPipe = grid[ny][nx].pipe;
-      const nextConnections = getConnections(nextPipe);
-
-      if (nextConnections.includes(opposite[direction])) {
-        dfs(nx, ny);
-      }
-    }
-  }
-
-  dfs(0, 0);
-
-  return filledCells;
-}
-
-function PipeTile({ cell, rotate }: { cell: Cell; rotate: () => void }) {
-  const { pipe, filled } = cell;
-  const isFixed = pipe.type === 'source' || pipe.type === 'sink';
-
-  return (
-    <div
-      onClick={!isFixed ? rotate : undefined}
-      style={{
-        transform: `rotate(${pipe.rotation * 90}deg)`,
-        background: filled ? '#38bdf8' : '#334155',
-      }}
-      className="flex h-14 w-14 select-none items-center justify-center border text-white"
-    >
-      {pipe.type[0].toUpperCase()}
-    </div>
-  );
+function saveState(state: GameState): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {}
 }
 
 export function PlumberPuzzleGame() {
-  const size = 6;
-  const [grid, setGrid] = useState<Cell[][]>(() => generatePuzzle(size));
+  const [gameState, setGameState] = useState<GameState>(loadState);
+  const [grid, setGrid] = useState<Grid>([]);
+  const [filled, setFilled] = useState<boolean[][]>([]);
+  const [phase, setPhase] = useState<Phase>('playing');
   const [moves, setMoves] = useState(0);
-  const [time, setTime] = useState(0);
-  const [won, setWon] = useState(false);
+  const [timer, setTimer] = useState(0);
+  const [timerActive, setTimerActive] = useState(false);
+  const [hint, setHint] = useState<[number, number] | null>(null);
+  const [hintsLeft, setHintsLeft] = useState(3);
+  const [earnedXP, setEarnedXP] = useState(0);
+  const [showWin, setShowWin] = useState(false);
+  const [splash, setSplash] = useState(false);
+  const winTimeout = useRef<ReturnType<typeof setTimeout>>();
+
+  const config = getLevelConfig(gameState.currentLevel);
+  const { rows, cols } = config;
+
+  const TILE_SIZE = Math.min(
+    Math.floor(Math.min(window.innerWidth - 32, 480) / cols) - 4,
+    Math.floor(360 / rows) - 4
+  );
+
+  const initLevel = useCallback(() => {
+    const newGrid = generateLevel(config);
+    setGrid(newGrid);
+    setFilled(Array.from({ length: config.rows }, () => Array(config.cols).fill(false)));
+    setMoves(0);
+    setPhase('playing');
+    setShowWin(false);
+    setSplash(false);
+    setTimer(0);
+    setTimerActive(true);
+    setHint(null);
+  }, [config.levelNumber]);
+
+  useEffect(() => { initLevel(); }, [initLevel]);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setTime((current) => current + 1);
-    }, 1000);
+    if (grid.length === 0) return;
+    const f = computeFlow(grid, rows, cols);
+    setFilled(f);
+    if (checkWin(grid, f, rows, cols) && phase === 'playing') {
+      setPhase('flowing');
+      setTimerActive(false);
+      setSplash(true);
+      winTimeout.current = setTimeout(() => {
+        const xp = config.xpReward + (timer < 30 ? Math.floor(config.xpReward * 0.5) : 0);
+        setEarnedXP(xp);
+        const updated = { 
+          ...gameState, 
+          totalXP: gameState.totalXP + xp,
+          currentLevel: gameState.currentLevel + 1 
+        };
+        setGameState(updated);
+        saveState(updated);
+        setPhase('won');
+        setShowWin(true);
+        setSplash(false);
+      }, 1500);
+    }
+  }, [grid, gameState, config, timer, phase, rows, cols]);
 
-    return () => clearInterval(timer);
-  }, []);
+  useEffect(() => {
+    if (!timerActive) return;
+    const id = setInterval(() => setTimer(t => t + 1), 1000);
+    return () => clearInterval(id);
+  }, [timerActive]);
 
-  function rotatePipe(x: number, y: number) {
-    if (won) return;
+  useEffect(() => () => { if (winTimeout.current) clearTimeout(winTimeout.current); }, []);
 
-    const newGrid = grid.map((row) => row.map((cell) => ({ ...cell, pipe: { ...cell.pipe }, filled: false })));
-    const pipe = newGrid[y][x].pipe;
-
-    if (pipe.type === 'source' || pipe.type === 'sink') return;
-
-    pipe.rotation = (pipe.rotation + 1) % 4;
-    setMoves((current) => current + 1);
-    setGrid(newGrid);
-  }
-
-  function startWater() {
-    if (!checkPath(grid)) return;
-
-    const cells = simulateWater(grid);
-    const newGrid = grid.map((row) => row.map((cell) => ({ ...cell })));
-
-    cells.forEach((key, index) => {
-      setTimeout(() => {
-        const [x, y] = key.split('-').map(Number);
-        newGrid[y][x].filled = true;
-        setGrid(newGrid.map((row) => [...row]));
-      }, index * 120);
+  function handleRotate(r: number, c: number) {
+    if (phase !== 'playing') return;
+    const cell = grid[r][c];
+    if (!cell.pipe || cell.pipe.isSource || cell.pipe.isSink) return;
+    setGrid(prev => {
+      const g = prev.map(row => row.map(cell => ({ ...cell, pipe: cell.pipe ? { ...cell.pipe } : null })));
+      g[r][c] = { pipe: rotatePipe(cell.pipe!) };
+      return g;
     });
-
-    setTimeout(() => {
-      setWon(true);
-    }, cells.length * 120);
+    setMoves(m => m + 1);
+    setHint(null);
   }
 
-  function reset() {
-    setGrid(generatePuzzle(size));
-    setMoves(0);
-    setTime(0);
-    setWon(false);
+  function handleAutoSolve() {
+    if (phase !== 'playing') return;
+    const solvedGrid = autoSolve(grid, rows, cols);
+    setGrid(solvedGrid);
+    setMoves(m => m + 1);
   }
+
+  function handleHint() {
+    if (hintsLeft <= 0 || phase !== 'playing') return;
+    const wrongCells: [number, number][] = [];
+    for (let r = 0; r < rows; r++)
+      for (let c = 0; c < cols; c++)
+        if (grid[r][c].pipe && !grid[r][c].pipe!.isSource && !grid[r][c].pipe!.isSink && !filled[r][c])
+          wrongCells.push([r, c]);
+    if (wrongCells.length === 0) return;
+    const pick = wrongCells[Math.floor(Math.random() * wrongCells.length)];
+    setHint(pick);
+    setHintsLeft(h => h - 1);
+    setTimeout(() => setHint(null), 2500);
+  }
+
+  function handleNextLevel() {
+    const updated = { ...gameState, currentLevel: gameState.currentLevel + 1 };
+    setGameState(updated);
+    saveState(updated);
+    setShowWin(false);
+    initLevel();
+  }
+
+  function handleRestart() {
+    initLevel();
+  }
+
+  const fmt = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+  const diffColor = config.difficulty === 'easy' ? 'text-emerald-400' : config.difficulty === 'medium' ? 'text-amber-400' : 'text-rose-400';
+  const diffLabel = config.difficulty === 'easy' ? 'Easy' : config.difficulty === 'medium' ? 'Medium' : 'Hard';
+
+  const formatXP = (xp: number) => xp >= 1000 ? `${(xp / 1000).toFixed(1)}k` : xp.toString();
 
   return (
-    <div className="p-4 text-center text-white">
-      <h1 className="mb-2 text-2xl">Pipe Puzzle</h1>
-
-      <div className="mb-3">
-        Moves: {moves} | Time: {time}s
+    <div className="min-h-screen flex flex-col items-center bg-gradient-to-b from-slate-950 via-purple-950/30 to-slate-950 select-none p-4">
+      {/* Header */}
+      <div className="w-full max-w-lg text-center pb-3">
+        <h1 className="text-2xl font-black bg-gradient-to-r from-purple-400 via-cyan-400 to-blue-400 bg-clip-text text-transparent tracking-tight">
+          Plumber Puzzle
+        </h1>
+        <div className="flex items-center justify-center gap-3 mt-1 text-xs">
+          <span className="text-slate-400">Level <span className="text-white font-bold">{gameState.currentLevel}</span></span>
+          <span className={`font-semibold ${diffColor}`}>{diffLabel}</span>
+          <span className="text-slate-400">Moves <span className="text-white font-bold">{moves}</span></span>
+          <span className="text-slate-400">{fmt(timer)}</span>
+        </div>
+        {/* XP progress */}
+        <div className="mt-2 mx-auto max-w-xs">
+          <div className="flex justify-between text-[10px] text-slate-500 mb-1">
+            <span>Total XP</span>
+            <span>{formatXP(gameState.totalXP)} XP</span>
+          </div>
+          <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-purple-500 to-cyan-500 rounded-full transition-all duration-500"
+              style={{ width: `${((gameState.totalXP % 10000) / 10000) * 100}%` }}
+            />
+          </div>
+        </div>
       </div>
 
-      {won && <div className="mb-3 text-green-400">Level Complete!</div>}
+      {/* Puzzle Grid */}
+      <div className="flex-1 flex flex-col items-center justify-center w-full">
+        <div
+          className="relative bg-slate-800/60 backdrop-blur rounded-2xl border border-slate-700/60 p-3 shadow-2xl"
+          style={{ boxShadow: splash ? '0 0 40px 10px rgba(34,211,238,0.2)' : undefined, transition: 'box-shadow 0.5s' }}
+        >
+          {grid.length > 0 && (
+            <div
+              style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, ${TILE_SIZE}px)`, gap: 4 }}
+            >
+              {grid.map((row, r) =>
+                row.map((cell, c) => (
+                  <PipeTile
+                    key={`${r}-${c}`}
+                    cell={cell}
+                    filled={filled[r]?.[c] ?? false}
+                    highlighted={hint?.[0] === r && hint?.[1] === c}
+                    onClick={() => handleRotate(r, c)}
+                    size={TILE_SIZE}
+                  />
+                ))
+              )}
+            </div>
+          )}
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: `repeat(${size},56px)`,
-          gap: 4,
-          justifyContent: 'center',
-        }}
-      >
-        {grid.map((row, y) =>
-          row.map((cell, x) => <PipeTile key={`${x}-${y}`} cell={cell} rotate={() => rotatePipe(x, y)} />),
-        )}
+          {splash && (
+            <div className="absolute inset-0 rounded-2xl pointer-events-none flex items-center justify-center z-20">
+              <div className="text-5xl animate-bounce">💧</div>
+            </div>
+          )}
+        </div>
+
+        {/* Reward preview */}
+        <div className="mt-3 text-center">
+          <span className="text-xs text-slate-500">Complete for </span>
+          <span className="text-xs font-bold text-yellow-400">+{config.xpReward} XP</span>
+          {timer < 30 && (
+            <span className="text-xs text-emerald-400 ml-1">(+{Math.floor(config.xpReward * 0.5)} time bonus!)</span>
+          )}
+        </div>
       </div>
 
-      <div className="mt-4 flex justify-center gap-3">
-        <button onClick={startWater} className="rounded bg-blue-600 px-4 py-2">
-          Start Water
-        </button>
-
-        <button onClick={reset} className="rounded bg-red-600 px-4 py-2">
-          New Puzzle
-        </button>
+      {/* Bottom Controls */}
+      <div className="w-full max-w-lg py-4">
+        <div className="flex items-center justify-between gap-3">
+          <button
+            onClick={handleRestart}
+            className="flex-1 flex flex-col items-center gap-1 py-3 bg-slate-800/80 hover:bg-slate-700/80 border border-slate-600/60 rounded-2xl text-slate-300 hover:text-white transition-all active:scale-95"
+          >
+            <span className="text-xl">🔄</span>
+            <span className="text-xs font-medium">Restart</span>
+          </button>
+          <button
+            onClick={handleHint}
+            disabled={hintsLeft <= 0 || phase !== 'playing'}
+            className="flex-1 flex flex-col items-center gap-1 py-3 bg-slate-800/80 hover:bg-amber-900/40 border border-slate-600/60 rounded-2xl text-slate-300 hover:text-amber-300 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <span className="text-xl">💡</span>
+            <span className="text-xs font-medium">Hint ({hintsLeft})</span>
+          </button>
+          <button
+            onClick={handleAutoSolve}
+            disabled={phase !== 'playing'}
+            className="flex-1 flex flex-col items-center gap-1 py-3 bg-slate-800/80 hover:bg-emerald-900/40 border border-slate-600/60 rounded-2xl text-slate-300 hover:text-emerald-300 transition-all active:scale-95 disabled:opacity-40"
+          >
+            <span className="text-xl">✅</span>
+            <span className="text-xs font-medium">Solve</span>
+          </button>
+        </div>
       </div>
+
+      {/* Win Modal */}
+      {showWin && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-300">
+          <div className="bg-gradient-to-b from-slate-800 to-slate-900 border border-purple-500/40 rounded-3xl p-7 max-w-sm w-full text-center shadow-2xl animate-in zoom-in-90 duration-400"
+            style={{ boxShadow: '0 0 60px rgba(139,92,246,0.3)' }}>
+            <div className="text-5xl mb-3 animate-bounce">🎉</div>
+            <h2 className="text-2xl font-black bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent mb-1">
+              Level Complete!
+            </h2>
+            <p className="text-slate-400 text-sm mb-4">Level {gameState.currentLevel - 1} solved in {moves} moves</p>
+
+            <div className="bg-slate-700/50 rounded-2xl p-4 mb-5 border border-slate-600/40">
+              <div className="text-3xl font-black text-yellow-400 mb-1">+{earnedXP} XP</div>
+              <div className="text-xs text-slate-400">
+                Total: {formatXP(gameState.totalXP)} XP
+              </div>
+              {earnedXP > config.xpReward && (
+                <div className="mt-2 text-xs text-emerald-400 font-semibold">⚡ Time Bonus Included!</div>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={handleNextLevel}
+                className="w-full py-3 bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white font-bold rounded-2xl transition-all active:scale-95 text-sm shadow-lg"
+              >
+                Next Level →
+              </button>
+              <button
+                onClick={handleRestart}
+                className="w-full py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 font-medium rounded-2xl transition-all active:scale-95 text-sm border border-slate-600"
+              >
+                Play Again
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+export default PlumberPuzzleGame;
