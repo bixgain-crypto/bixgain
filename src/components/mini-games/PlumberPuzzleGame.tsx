@@ -4,6 +4,7 @@ import { BixCounter } from '@/components/BixCounter';
 import { computeFlow, checkWin, rotatePipe, autoSolve } from '@/lib/pipeGame/pipeTypes';
 import type { Grid } from '@/lib/pipeGame/pipeTypes';
 import { generateLevel, getLevelConfig } from '@/lib/pipeGame/puzzleGenerator';
+import { formatXp } from '@/lib/progression';
 import PipeTile from './PipeTile';
 
 type Phase = 'playing' | 'flowing' | 'won';
@@ -47,15 +48,24 @@ export function PlumberPuzzleGame() {
   const [splash, setSplash] = useState(false);
   const winTimeout = useRef<ReturnType<typeof setTimeout>>();
 
+  // Fix: Track window width for responsive TILE_SIZE
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 480);
+
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const config = getLevelConfig(gameState.currentLevel);
   const { rows, cols } = config;
 
   const TILE_SIZE = Math.min(
-    Math.floor(Math.min(window.innerWidth - 32, 480) / cols) - 4,
+    Math.floor(Math.min(windowWidth - 32, 480) / cols) - 4,
     Math.floor(360 / rows) - 4
   );
 
-  const initLevel = useCallback(() => {
+  const initLevel = useCallback((levelOverride?: number) => {
     const newGrid = generateLevel(config);
     setGrid(newGrid);
     setFilled(Array.from({ length: config.rows }, () => Array(config.cols).fill(false)));
@@ -66,7 +76,7 @@ export function PlumberPuzzleGame() {
     setTimer(0);
     setTimerActive(true);
     setHint(null);
-  }, [config.levelNumber]);
+  }, [config]);
 
   useEffect(() => { initLevel(); }, [initLevel]);
 
@@ -83,8 +93,8 @@ export function PlumberPuzzleGame() {
         setEarnedXP(xp);
         const updated = { 
           ...gameState, 
-          totalXP: gameState.totalXP + xp,
-          currentLevel: gameState.currentLevel + 1 
+          totalXP: gameState.totalXP + xp
+          // Removed currentLevel + 1 from here to prevent double-leveling
         };
         setGameState(updated);
         saveState(updated);
@@ -138,11 +148,11 @@ export function PlumberPuzzleGame() {
   }
 
   function handleNextLevel() {
+    // Fix: Increment level only when the user explicitly moves forward
     const updated = { ...gameState, currentLevel: gameState.currentLevel + 1 };
     setGameState(updated);
     saveState(updated);
     setShowWin(false);
-    initLevel();
   }
 
   function handleRestart() {
@@ -152,8 +162,6 @@ export function PlumberPuzzleGame() {
   const fmt = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
   const diffColor = config.difficulty === 'easy' ? 'text-emerald-400' : config.difficulty === 'medium' ? 'text-amber-400' : 'text-rose-400';
   const diffLabel = config.difficulty === 'easy' ? 'Easy' : config.difficulty === 'medium' ? 'Medium' : 'Hard';
-
-  const formatXP = (xp: number) => xp >= 1000 ? `${(xp / 1000).toFixed(1)}k` : xp.toString();
 
   return (
     <div className="min-h-screen flex flex-col items-center bg-gradient-to-b from-slate-950 via-purple-950/30 to-slate-950 select-none p-4">
@@ -173,7 +181,7 @@ export function PlumberPuzzleGame() {
           <div className="flex justify-between text-[10px] text-slate-500 mb-1 px-1">
             <span>Progress</span>
             <div className="flex gap-2">
-              <span>{formatXP(gameState.totalXP)} XP</span>
+              <span>{formatXp(gameState.totalXP)} XP</span>
               <span className="text-amber-400 font-bold">
                 <BixCounter value={gameState.totalXP / 10000} />
                 {" BIX"}
@@ -279,7 +287,7 @@ export function PlumberPuzzleGame() {
                 {" BIX"}
               </div>
               <div className="text-xs text-slate-400 flex flex-col gap-0.5 mt-2">
-                <span>Total: {formatXP(gameState.totalXP)} XP</span>
+                <span>Total: {formatXp(gameState.totalXP)} XP</span>
                 <span className="text-amber-400/80 font-medium">
                   <BixCounter value={gameState.totalXP / 10000} />
                   {" BIX"}

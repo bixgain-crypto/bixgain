@@ -1,5 +1,7 @@
 import { AppLayout } from "@/components/AppLayout";
 import { useAppData } from "@/context/AppDataContext";
+import { BixCounter } from "@/components/BixCounter";
+import { formatBixAmount } from "@/lib/currency";
 import { useAuth } from "@/hooks/useAuth";
 import { motion } from "framer-motion";
 import {
@@ -80,7 +82,7 @@ export default function WalletPage() {
         >
           <p className="text-sm text-muted-foreground mb-2">Total Balance</p>
           <p className="text-3xl sm:text-5xl font-bold font-mono text-gradient-gold">
-            {Number(wallet?.balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            <BixCounter value={Number(wallet?.balance || 0)} />
           </p>
           <p className="text-lg text-muted-foreground mt-1">BIX</p>
           {wallet?.address && (
@@ -94,7 +96,7 @@ export default function WalletPage() {
           )}
           {Number(wallet?.pending_balance || 0) > 0 && (
             <p className="mt-2 text-sm text-warning">
-              + {Number(wallet?.pending_balance).toLocaleString()} BIX pending
+              + {formatBixAmount(wallet?.pending_balance)} BIX pending
             </p>
           )}
         </motion.div>
@@ -134,7 +136,7 @@ export default function WalletPage() {
                         </div>
                         <div className="text-right ml-auto">
                           <p className={`font-mono text-sm font-semibold ${isEarning ? "text-success" : "text-destructive"}`}>
-                            {isEarning ? "+" : "-"}{Number(tx.net_amount).toLocaleString()} BIX
+                            {isEarning ? "+" : "-"}{formatBixAmount(tx.net_amount)} BIX
                           </p>
                           <p className="text-xs text-muted-foreground">{new Date(tx.created_at).toLocaleDateString()}</p>
                         </div>
