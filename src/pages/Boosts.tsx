@@ -369,6 +369,57 @@ export default function Boosts() {
       longestLength: result.longestLength,
       estimatedXp: result.xp,
     });
+
+    if (!activeGame || !gameSession) return;
+
+    const clampedEstimatedXp = Math.max(0, Math.min(Math.floor(result.xp), activeGame.max_xp));
+    const estimatedBix = Number((clampedEstimatedXp / 10000).toFixed(8));
+
+    setGameResult({
+      rawScore: result.rawScore,
+      estimatedXp: clampedEstimatedXp,
+      estimatedBix,
+      longestLength: Math.max(0, Math.floor(result.longestLength)),
+      submitted: false,
+      submitting: true,
+      verified: null,
+    });
+
+    void (async () => {
+      try {
+        const verifiedResult = await submitMiniGameScore(gameSession.session_id, result.rawScore, {
+          submitted_at: new Date().toISOString(),
+          source: "bixsnake-arena-autosubmit",
+        });
+        setGameResult((current) =>
+          current
+            ? {
+                ...current,
+                submitting: false,
+                submitted: true,
+                verified: verifiedResult,
+              }
+            : current,
+        );
+        setOverview((current) =>
+          current
+            ? {
+                ...current,
+                energy: verifiedResult.energy_remaining,
+                today_games_played: verifiedResult.games_played_today,
+              }
+            : current,
+        );
+        await Promise.all([refreshUserProfile(), refreshWallet(), refreshActivities(), loadOverview()]);
+        toast.success(
+          `Score submitted: +${formatXp(verifiedResult.xp_earned)} XP (${formatBixAmount(verifiedResult.bix_earned)} BIX)`,
+        );
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : "Unable to submit score";
+        setGameResult((current) => (current ? { ...current, submitting: false } : current));
+        toast.error(message);
+      }
+    })();
   };
 
   const handleSubmitScore = async () => {
