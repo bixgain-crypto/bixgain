@@ -1,3 +1,4 @@
+import { formatBix } from "@/lib/currency";
 import { Button } from "@/components/ui/button";
 import DragonMascot from "@/components/DragonMascot";
 import { cn } from "@/lib/utils";
@@ -1105,7 +1106,7 @@ export function BixSnakeArenaGame({ onFinish, playerName = "Player", className }
         </div>
         <div className="rounded-xl border border-border/60 bg-secondary/35 px-4 py-3">
           <p className="text-xs uppercase tracking-wider text-muted-foreground">BIX</p>
-          <p className="mt-1 text-2xl font-bold">{hud.bix.toFixed(4)}</p>
+          <p className="mt-1 text-2xl font-bold">{formatBix(hud.xp)}</p>
         </div>
         <div className="rounded-xl border border-border/60 bg-secondary/35 px-4 py-3">
           <p className="text-xs uppercase tracking-wider text-muted-foreground">Length</p>

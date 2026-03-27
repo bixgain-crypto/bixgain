@@ -1,6 +1,11 @@
 import { AppLayout } from "@/components/AppLayout";
 import { BixLogo } from "@/components/BixLogo";
 import {
+  formatBix,
+  formatBixAmount,
+} from "@/lib/currency";
+import { BixCounter } from "@/components/BixCounter";
+import {
   BixSnakeArenaGame,
   type BixSnakeArenaFinishResult,
 } from "@/components/mini-games/BixSnakeArenaGame";
@@ -364,7 +369,7 @@ export default function Boosts() {
       const result = await submitMiniGameScore(gameSession.session_id, gameResult.rawScore, {
         submitted_at: new Date().toISOString(),
       });
-      setGameResult((current) =>
+      setGameResult((current) => 
         current
           ? {
               ...current,
@@ -384,7 +389,7 @@ export default function Boosts() {
           : current,
       );
       await Promise.all([refreshUserProfile(), refreshWallet(), refreshActivities(), loadOverview()]);
-      toast.success(`Score submitted: +${formatXp(result.xp_earned)} XP (${result.bix_earned.toFixed(4)} BIX)`);
+      toast.success(`Score submitted: +${formatXp(result.xp_earned)} XP (${formatBixAmount(result.bix_earned)} BIX)`);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Unable to submit score";
       setGameResult((current) => (current ? { ...current, submitting: false } : current));
@@ -457,8 +462,12 @@ export default function Boosts() {
               </div>
               <div className="rounded-xl border border-border/60 bg-secondary/30 px-4 py-3">
                 <p className="text-xs uppercase tracking-wider text-muted-foreground">BIX from Games</p>
-                <p className="mt-1 text-2xl font-bold">
-                  {loadingOverview ? "--" : Number(overview?.stats.total_bix_earned_from_games || 0).toFixed(4)}
+                <p className="mt-1 text-2xl font-bold text-amber-400">
+                  {loadingOverview ? "--" : (
+                    <BixCounter 
+                      value={Number(overview?.stats.total_bix_earned_from_games || 0)} 
+                    />
+                  )}
                 </p>
               </div>
             </div>
@@ -523,7 +532,7 @@ export default function Boosts() {
                   </div>
                   <div className="rounded-lg border border-border/60 bg-secondary/35 px-3 py-2">
                     <p className="text-xs text-muted-foreground uppercase">BIX Earned</p>
-                    <p className="mt-1 text-xl font-bold">{displayBix.toFixed(4)}</p>
+                    <p className="mt-1 text-xl font-bold text-amber-400">{formatBixAmount(displayBix)}</p>
                   </div>
                   <div className="rounded-lg border border-border/60 bg-secondary/35 px-3 py-2">
                     <p className="text-xs text-muted-foreground uppercase">Longest Length</p>
@@ -537,7 +546,7 @@ export default function Boosts() {
                     <p>{`First Game: +${formatXp(verified.bonuses.first_game_bonus_xp)} XP`}</p>
                     <p>{`Combo: +${formatXp(verified.bonuses.combo_bonus_xp)} XP`}</p>
                     <p>{`Lucky XP: +${formatXp(verified.bonuses.lucky_bonus_xp)} XP`}</p>
-                    <p>{`Lucky BIX: +${verified.bonuses.lucky_bonus_bix.toFixed(4)} BIX`}</p>
+                    <p>{`Lucky BIX: +${formatBixAmount(verified.bonuses.lucky_bonus_bix)} BIX`}</p>
                   </div>
                 ) : (
                   <p className="text-xs text-muted-foreground">

@@ -1,7 +1,8 @@
-import { getMiniGamesOverview, startMiniGameSession, submitMiniGameScore } from "@/lib/miniGamesApi";
-import DragonMascot from "@/components/DragonMascot";
+import { getMiniGamesOverview } from "@/lib/miniGamesApi";
+import { formatBix } from "@/lib/currency";
+import { BixCounter } from "@/components/BixCounter";
 import { formatXp } from "@/lib/progression";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 
 type GameFinishPayload = {
@@ -18,270 +19,219 @@ type Bubble = {
   id: number;
   x: number;
   y: number;
-  driftX: number;
-  size: number;
-  duration: number;
-  critical: boolean;
-  text: string;
+  xp: number;
+  type: "normal" | "perfect" | "double" | "jackpot";
 };
 
-const ENERGY_FALLBACK_MAX = 100;
-const TAP_THROTTLE_MS = 80;
-const XP_BUBBLE_VALUE = 2;
-const COMBO_WINDOW_MS = 1100;
-const ROUND_SECONDS = 10;
+// Constants based on requirements
+const MAX_ENERGY = 100;
+const ENERGY_REGEN_MS = 500;
+const BASE_XP = 10;
+const PERFECT_WINDOW_MIN = 200;
+const PERFECT_WINDOW_MAX = 600;
+const MAX_ACTIVE_BUBBLES = 20;
 
-export function BixTapGame({ onFinish }: Props) {
-  const [xpTotal, setXpTotal] = useState(0);
-  const [energy, setEnergy] = useState(0);
-  const [maxEnergy, setMaxEnergy] = useState(ENERGY_FALLBACK_MAX);
-
-  const [phase, setPhase] = useState<"idle" | "running" | "submitting" | "finished">("idle");
-  const [timeLeft, setTimeLeft] = useState(ROUND_SECONDS);
-
-  const [bubbleSeed, setBubbleSeed] = useState(0);
-  const [pulseSeed, setPulseSeed] = useState(0);
-  const [bubbles, setBubbles] = useState<Bubble[]>([]);
-
-  const [rawScore, setRawScore] = useState(0);
+export function BixTapGame({ }: Props) {
+  // Requirement 2: Energy System
+  const [energy, setEnergy] = useState(MAX_ENERGY);
+  
+  // Requirement 4 & 7: XP Tracking
+  const [localXp, setSessionXp] = useState(0);
+  
+  // Requirement 3: Combo System
   const [combo, setCombo] = useState(0);
-  const [maxCombo, setMaxCombo] = useState(0);
-  const [criticalHits, setCriticalHits] = useState(0);
-  const [coinBursts, setCoinBursts] = useState(0);
-
-  const [errorText, setErrorText] = useState<string | null>(null);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-
-  const tapAreaRef = useRef<HTMLButtonElement | null>(null);
   const lastTapAtRef = useRef(0);
+  
+  // Requirement 5: Bubble Animations
+  const [bubbles, setBubbles] = useState<Bubble[]>([]);
+  
+  // Requirement 8: Local Accumulator for Backend
+  const pendingXpRef = useRef(0);
 
+  // Initialize energy from backend if available
   useEffect(() => {
-    let isMounted = true;
+    getMiniGamesOverview().then(data => {
+      if (data?.energy !== undefined) setEnergy(data.energy);
+    }).catch(() => {});
+  }, []);
 
-    const loadFromBackend = async () => {
-      try {
-        const overview = await getMiniGamesOverview();
-        if (!isMounted) return;
-        setXpTotal(overview.stats.total_xp_from_games);
-        setEnergy(overview.energy);
-        setMaxEnergy(overview.max_energy);
-        setErrorText(null);
-      } catch (error) {
-        if (!isMounted) return;
-        setErrorText(error instanceof Error ? error.message : "Could not load BIXTap data.");
-      }
-    };
+  // Requirement 2: Energy Regeneration Logic
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setEnergy((prev) => Math.min(MAX_ENERGY, prev + 1));
+    }, ENERGY_REGEN_MS);
+    return () => clearInterval(timer);
+  }, []);
 
-    void loadFromBackend();
+  // Requirement 8: Periodic Backend Sync
+  const syncXp = useCallback(async () => {
+    const xpToSync = pendingXpRef.current;
+    if (xpToSync <= 0) return;
 
-    return () => {
-      isMounted = false;
-    };
+    pendingXpRef.current = 0; // Optimistically clear
+    try {
+      await fetch('/api/award_xp', {
+        method: 'POST',
+        body: JSON.stringify({ xp: xpToSync }),
+      });
+    } catch (err) {
+      pendingXpRef.current += xpToSync; // Re-add on failure
+    }
   }, []);
 
   useEffect(() => {
-    if (phase !== "running") return;
-
-    if (timeLeft <= 0) {
-      void finishRound();
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      setTimeLeft((current) => Math.max(0, current - 1));
-    }, 1000);
-
+    const syncInterval = setInterval(syncXp, 15000); // Sync every 15s
     return () => {
-      window.clearTimeout(timer);
+      clearInterval(syncInterval);
+      syncXp(); // Final sync on unmount
     };
-  }, [finishRound, phase, timeLeft]);
+  }, [syncXp]);
 
-  const progressPct = useMemo(() => Math.max(0, Math.min(100, (timeLeft / ROUND_SECONDS) * 100)), [timeLeft]);
+  // Requirement 4: Calculate XP modularly
+  const calculateXP = useCallback((currentCombo: number) => {
+    const comboMultiplier = 1 + (currentCombo * 0.1);
+    const variance = Math.random() * (1.1 - 0.9) + 0.9;
+    
+    let bonus = 1;
+    let type: Bubble["type"] = "normal";
+    const roll = Math.random();
 
-  const startRound = async () => {
-    if (phase === "running" || phase === "submitting") return;
-    setErrorText(null);
-
-    try {
-      const session = await startMiniGameSession("bixtap", {
-        input: "dragon-fire-tap",
-        started_at: new Date().toISOString(),
-      });
-      setSessionId(session.session_id);
-      setEnergy(session.energy_remaining);
-      setRawScore(0);
-      setCombo(0);
-      setCriticalHits(0);
-      setCoinBursts(0);
-      setTimeLeft(ROUND_SECONDS);
-      setBubbles([]);
-      lastTapAtRef.current = 0;
-      setPhase("running");
-    } catch (error) {
-      setErrorText(error instanceof Error ? error.message : "Could not start BixTap round.");
-      setSessionId(null);
-    }
-  };
-
-  const finishRound = useCallback(async () => {
-    if (!sessionId || phase !== "running") {
-      setPhase("finished");
-      return;
+    if (roll < 0.05) {
+      bonus = 5; // JACKPOT
+      type = "jackpot";
+    } else if (roll < 0.20) {
+      bonus = 2; // DOUBLE
+      type = "double";
     }
 
-    setPhase("submitting");
-    try {
-      const result = await submitMiniGameScore(sessionId, rawScore, {
-        input: "dragon-fire-tap",
-        submitted_at: new Date().toISOString(),
-        combo: maxCombo,
-        critical_hits: criticalHits,
-      });
+    const earned = Math.floor(BASE_XP * comboMultiplier * variance * bonus);
+    return { earned, type, comboMultiplier };
+  }, []);
 
-      setXpTotal((current) => current + result.xp_earned);
-      setEnergy(result.energy_remaining);
-      onFinish({ rawScore: result.raw_score, estimatedXp: result.xp_earned });
-      setPhase("finished");
-      setSessionId(null);
-    } catch (error) {
-      setErrorText(error instanceof Error ? error.message : "Could not submit BixTap score.");
-      setPhase("finished");
-    }
-  }, [criticalHits, maxCombo, onFinish, phase, rawScore, sessionId]);
+  // Requirement 5 & 9: Spawn Bubble with cleanup
+  const spawnBubble = useCallback((x: number, y: number, xp: number, type: Bubble["type"]) => {
+    const id = Date.now();
+    setBubbles((prev) => [...prev.slice(-(MAX_ACTIVE_BUBBLES - 1)), { id, x, y, xp, type }]);
+    setTimeout(() => {
+      setBubbles((prev) => prev.filter((b) => b.id !== id));
+    }, 1000);
+  }, []);
 
-  const handleTap = (event: PointerEvent<HTMLButtonElement>) => {
+  // Requirement 1 & 3: Handle Tap
+  const handleTap = (event: PointerEvent<HTMLDivElement>) => {
+    if (energy <= 0) return;
+
     const now = Date.now();
-    if (phase !== "running" || now - lastTapAtRef.current < TAP_THROTTLE_MS) return;
-
-    const previousTapAt = lastTapAtRef.current;
+    const diff = now - lastTapAtRef.current;
     lastTapAtRef.current = now;
 
-    const rect = tapAreaRef.current?.getBoundingClientRect();
+    // Combo window check
+    const isPerfect = diff >= PERFECT_WINDOW_MIN && diff <= PERFECT_WINDOW_MAX;
+    const newCombo = isPerfect ? combo + 1 : 0;
+
+    const { earned, type } = calculateXP(newCombo);
+    const finalType = (isPerfect && type === "normal") ? "perfect" : type;
+
+    // Update local state
+    setEnergy((e) => e - 1);
+    setCombo(newCombo);
+    setSessionXp((prev) => prev + earned);
+    pendingXpRef.current += earned;
+
+    // Trigger animation
+    const rect = event.currentTarget.getBoundingClientRect();
     const x = rect ? event.clientX - rect.left : 0;
     const y = rect ? event.clientY - rect.top : 0;
-
-    const nextSeed = bubbleSeed + 1;
-    const comboCount = now - previousTapAt <= COMBO_WINDOW_MS ? combo + 1 : 1;
-    const comboMultiplier = comboCount >= 20 ? 4 : comboCount >= 10 ? 3 : comboCount >= 5 ? 2 : 1;
-    const critical = Math.random() < 0.14;
-    const scoreUnits = comboMultiplier + (critical ? 1 : 0);
-
-    const bubble: Bubble = {
-      id: nextSeed,
-      x: x || (rect ? rect.width / 2 : 0),
-      y: y || (rect ? rect.height / 2 : 0),
-      driftX: Math.random() * 42 - 21,
-      size: 16 + Math.random() * 8,
-      duration: 0.8 + Math.random() * 0.4,
-      critical,
-      text: critical ? `CRIT x${scoreUnits}` : `x${scoreUnits}`,
-    };
-
-    setBubbleSeed(nextSeed);
-    setPulseSeed((value) => value + 1);
-    setBubbles((current) => [...current, bubble]);
-    setCombo(comboCount);
-    setMaxCombo((current) => Math.max(current, comboCount));
-    setRawScore((current) => current + scoreUnits);
-
-    if (critical) {
-      setCriticalHits((current) => current + 1);
-    }
-
-    if (comboCount % 10 === 0) {
-      setCoinBursts((current) => current + 1);
-    }
-
-    window.setTimeout(() => {
-      setBubbles((current) => current.filter((item) => item.id !== bubble.id));
-    }, bubble.duration * 1000 + 50);
+    spawnBubble(x, y, earned, finalType);
   };
 
+  // Requirement 7: XP -> BIX Conversion Display
+  const currentMultiplier = useMemo(() => (1 + combo * 0.1).toFixed(1), [combo]);
+
   return (
-    <div className="mx-auto flex min-h-[520px] w-full max-w-md flex-col rounded-3xl border border-cyan-300/25 bg-slate-950 p-4 text-cyan-50 shadow-[0_0_70px_-35px_rgba(34,211,238,0.9)]">
-      <div className="flex items-center justify-between rounded-xl border border-cyan-200/20 bg-slate-900/80 px-4 py-3 text-sm font-semibold">
-        <p>{`XP: ${formatXp(xpTotal)}`}</p>
-        <p>{`Energy: ${energy} / ${maxEnergy}`}</p>
-      </div>
+    <div 
+      className="relative mx-auto flex h-[600px] w-full max-w-md flex-col rounded-3xl border border-cyan-500/20 bg-slate-950 p-6 text-cyan-50 shadow-2xl overflow-hidden touch-none select-none"
+      onPointerDown={handleTap}
+    >
+      {/* Requirement 6: UI ELEMENTS (TOP SECTION ONLY) */}
+      <div className="z-10 space-y-4 pointer-events-none">
+        {/* Energy Bar */}
+        <div className="space-y-1.5">
+          <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-cyan-400">
+            <span>Energy</span>
+            <span className={energy < 10 ? "text-red-500 animate-pulse" : ""}>{energy} / {MAX_ENERGY}</span>
+          </div>
+          <div className="h-2 rounded-full bg-slate-900/80 border border-white/5 overflow-hidden">
+            <motion.div 
+              className={`h-full bg-gradient-to-r ${energy < 10 ? 'from-red-500 to-orange-500' : 'from-cyan-400 to-blue-500'}`}
+              animate={{ width: `${(energy / MAX_ENERGY) * 100}%` }}
+            />
+          </div>
+          {energy < 10 && <p className="text-[9px] text-red-400 text-center font-bold">REGENERATING...</p>}
+        </div>
 
-      <div className="mt-3 grid grid-cols-5 gap-2 rounded-xl border border-cyan-200/20 bg-slate-900/70 px-3 py-2 text-[11px]">
-        <p>{`Time: ${timeLeft}s`}</p>
-        <p>{`Score: ${rawScore}`}</p>
-        <p>{`Combo: ${combo}`}</p>
-        <p>{`Best: ${maxCombo}`}</p>
-        <p>{`Crit: ${criticalHits}`}</p>
-      </div>
-
-      <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-900/70">
-        <motion.div
-          className="h-full bg-gradient-to-r from-sky-400 via-cyan-300 to-amber-300"
-          animate={{ width: `${progressPct}%` }}
-          transition={{ type: "spring", stiffness: 140, damping: 24, mass: 0.5 }}
-        />
-      </div>
-
-      <button
-        ref={tapAreaRef}
-        type="button"
-        onPointerDown={handleTap}
-        disabled={phase !== "running"}
-        style={{ touchAction: "manipulation" }}
-        className="relative mt-4 flex flex-1 items-center justify-center overflow-hidden rounded-2xl border border-cyan-300/25 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.24),rgba(15,23,42,1))]"
-      >
-        {bubbles.map((bubble) => (
-          <motion.div
-            key={bubble.id}
-            initial={{ opacity: 0, x: bubble.x, y: bubble.y, scale: 0.7 }}
-            animate={{ opacity: [0, 1, 0], x: bubble.x + bubble.driftX, y: bubble.y - 80, scale: [0.8, 1, 0.9] }}
-            transition={{ duration: bubble.duration, ease: "easeOut" }}
-            className="pointer-events-none absolute inline-flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 text-[10px] font-bold text-cyan-50 drop-shadow-[0_0_12px_rgba(34,211,238,0.8)]"
-          >
-            <span
-              className="inline-flex items-center justify-center rounded-full border border-cyan-100/35 bg-cyan-100/15 shadow-[0_0_12px_rgba(34,211,238,0.55)]"
-              style={{ width: bubble.size, height: bubble.size }}
-            >
-              <img src="/bixgain.png" alt="BixGain" className="h-[70%] w-[70%] rounded-full object-cover" />
+        {/* XP Progress & BIX equivalent */}
+        <div className="space-y-1.5">
+          <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-amber-400">
+            <span>Session XP: {formatXp(localXp)}</span>
+            <span>
+              <BixCounter value={localXp / 10000} />
+              {" BIX"}
             </span>
-            <span className={bubble.critical ? "text-amber-300" : "text-cyan-50"}>{`${bubble.text} • +${XP_BUBBLE_VALUE} XP`}</span>
+          </div>
+          <div className="h-2 rounded-full bg-slate-900/80 border border-white/5 overflow-hidden">
+            <motion.div 
+              className="h-full bg-gradient-to-r from-amber-400 to-orange-500"
+              animate={{ width: `${(localXp % 10000) / 100}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Overlays for Multiplier and Combo */}
+        <div className="flex justify-between items-center pt-2">
+          <AnimatePresence mode="wait">
+            {combo > 0 && (
+              <motion.div 
+                key={combo}
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 1.2, opacity: 0 }}
+                className="text-2xl font-black text-cyan-400 drop-shadow-[0_0_10px_rgba(34,211,238,0.6)]"
+              >
+                COMBO x{combo}
+              </motion.div>
+            )}
+          </AnimatePresence>
+          <div className="rounded-full bg-white/5 border border-white/10 px-3 py-1 text-xs font-bold backdrop-blur-sm">
+            MULTIPLIER x{currentMultiplier}
+          </div>
+        </div>
+      </div>
+
+      {/* Animations: Floating XP Bubbles */}
+      <AnimatePresence>
+        {bubbles.map((b) => (
+          <motion.div
+            key={b.id}
+            initial={{ opacity: 0, y: b.y, x: b.x, scale: 0.5 }}
+            animate={{ opacity: [0, 1, 0], y: b.y - 120, x: b.x + (Math.random() * 40 - 20), scale: [0.5, 1.2, 1] }}
+            transition={{ duration: 0.8, ease: "easeOut" }}
+            className={`pointer-events-none absolute font-black italic
+              ${b.type === 'jackpot' ? 'text-amber-400 text-3xl drop-shadow-[0_0_15px_rgba(251,191,36,1)]' : 
+                b.type === 'double' ? 'text-blue-400 text-2xl' : 
+                b.type === 'perfect' ? 'text-cyan-300 text-xl' : 'text-white'}`}
+          >
+            +{b.xp}
           </motion.div>
         ))}
+      </AnimatePresence>
 
-        <motion.div
-          key={pulseSeed}
-          initial={{ scale: 1 }}
-          animate={{ scale: [1, 0.94, 1.04, 1] }}
-          transition={{ duration: 0.2, ease: "easeOut" }}
-          className="relative"
-        >
-          <div className="h-[240px] w-[240px] rounded-full border-4 border-cyan-100/60 bg-gradient-to-br from-cyan-300/60 via-sky-300/20 to-slate-900 shadow-[0_0_90px_-18px_rgba(34,211,238,1)]" />
-          <div className="absolute inset-[14%] flex items-center justify-center rounded-full border border-cyan-100/45 bg-slate-900/35">
-            <DragonMascot mood={combo >= 20 ? "rage" : "fire"} size="lg" title="Dragon Fire Tap" />
-          </div>
-        </motion.div>
-      </button>
-
-      <div className="mt-3 flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => void startRound()}
-          disabled={phase === "running" || phase === "submitting"}
-          className="rounded-lg bg-cyan-400 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {phase === "finished" ? "Play again" : "Start round"}
-        </button>
-        <button
-          type="button"
-          onClick={() => void finishRound()}
-          disabled={phase !== "running"}
-          className="rounded-lg border border-cyan-200/30 px-3 py-2 text-xs font-semibold text-cyan-100 transition hover:bg-cyan-200/10 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          End & submit
-        </button>
-        <p className="self-center text-xs text-cyan-200/80">{`Bursts: ${coinBursts}`}</p>
+      {/* Background Hint */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
+        <p className="text-4xl font-black uppercase tracking-tighter text-slate-800">
+          {energy > 0 ? "Tap to Earn" : "Out of Energy"}
+        </p>
       </div>
-
-      {errorText ? <p className="mt-3 text-center text-xs text-red-300">{errorText}</p> : null}
-      <p className="mt-2 text-center text-xs text-cyan-200/80">Tap to breathe fire. Score submits once per round for secure rewards.</p>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { formatBixAmount } from "@/lib/currency";
 import { Button } from "@/components/ui/button";
 import { formatXp } from "@/lib/progression";
 import type { MiniGameSubmitResult } from "@/lib/miniGamesApi";
@@ -53,7 +54,7 @@ export function GameResultPanel({ gameResult, displayXp, displayBix, onSubmitSco
         </div>
         <div className="rounded-lg border border-border/60 bg-secondary/35 px-3 py-2">
           <p className="text-xs text-muted-foreground uppercase">BIX Earned</p>
-          <p className="mt-1 text-xl font-bold">{displayBix.toFixed(4)}</p>
+          <p className="mt-1 text-xl font-bold text-amber-400">{formatBixAmount(displayBix)}</p>
         </div>
         <div className="rounded-lg border border-border/60 bg-secondary/35 px-3 py-2">
           <p className="text-xs text-muted-foreground uppercase">Longest Length</p>
@@ -67,7 +68,7 @@ export function GameResultPanel({ gameResult, displayXp, displayBix, onSubmitSco
           <p>{`First Game: +${formatXp(verified.bonuses.first_game_bonus_xp)} XP`}</p>
           <p>{`Combo: +${formatXp(verified.bonuses.combo_bonus_xp)} XP`}</p>
           <p>{`Lucky XP: +${formatXp(verified.bonuses.lucky_bonus_xp)} XP`}</p>
-          <p>{`Lucky BIX: +${verified.bonuses.lucky_bonus_bix.toFixed(4)} BIX`}</p>
+          <p>{`Lucky BIX: +${formatBixAmount(verified.bonuses.lucky_bonus_bix)} BIX`}</p>
           <p className="mt-2 text-xs text-muted-foreground">Daily cap, anti-bot, and score validation checks passed.</p>
         </div>
       ) : (

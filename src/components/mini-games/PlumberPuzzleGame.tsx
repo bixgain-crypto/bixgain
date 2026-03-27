@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { formatBix } from '@/lib/currency';
+import { BixCounter } from '@/components/BixCounter';
 import { computeFlow, checkWin, rotatePipe, autoSolve } from '@/lib/pipeGame/pipeTypes';
 import type { Grid } from '@/lib/pipeGame/pipeTypes';
 import { generateLevel, getLevelConfig } from '@/lib/pipeGame/puzzleGenerator';
@@ -168,9 +170,15 @@ export function PlumberPuzzleGame() {
         </div>
         {/* XP progress */}
         <div className="mt-2 mx-auto max-w-xs">
-          <div className="flex justify-between text-[10px] text-slate-500 mb-1">
-            <span>Total XP</span>
-            <span>{formatXP(gameState.totalXP)} XP</span>
+          <div className="flex justify-between text-[10px] text-slate-500 mb-1 px-1">
+            <span>Progress</span>
+            <div className="flex gap-2">
+              <span>{formatXP(gameState.totalXP)} XP</span>
+              <span className="text-amber-400 font-bold">
+                <BixCounter value={gameState.totalXP / 10000} />
+                {" BIX"}
+              </span>
+            </div>
           </div>
           <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
             <div
@@ -215,7 +223,8 @@ export function PlumberPuzzleGame() {
 
         {/* Reward preview */}
         <div className="mt-3 text-center">
-          <span className="text-xs text-slate-500">Complete for </span>
+          <span className="text-xs text-slate-500">Reward: </span>
+          <span className="text-xs font-bold text-amber-400 mr-1">{formatBix(config.xpReward)} BIX</span>
           <span className="text-xs font-bold text-yellow-400">+{config.xpReward} XP</span>
           {timer < 30 && (
             <span className="text-xs text-emerald-400 ml-1">(+{Math.floor(config.xpReward * 0.5)} time bonus!)</span>
@@ -265,8 +274,16 @@ export function PlumberPuzzleGame() {
 
             <div className="bg-slate-700/50 rounded-2xl p-4 mb-5 border border-slate-600/40">
               <div className="text-3xl font-black text-yellow-400 mb-1">+{earnedXP} XP</div>
-              <div className="text-xs text-slate-400">
-                Total: {formatXP(gameState.totalXP)} XP
+              <div className="text-sm font-bold text-amber-500 mb-1">
+                +<BixCounter value={earnedXP / 10000} />
+                {" BIX"}
+              </div>
+              <div className="text-xs text-slate-400 flex flex-col gap-0.5 mt-2">
+                <span>Total: {formatXP(gameState.totalXP)} XP</span>
+                <span className="text-amber-400/80 font-medium">
+                  <BixCounter value={gameState.totalXP / 10000} />
+                  {" BIX"}
+                </span>
               </div>
               {earnedXP > config.xpReward && (
                 <div className="mt-2 text-xs text-emerald-400 font-semibold">⚡ Time Bonus Included!</div>
