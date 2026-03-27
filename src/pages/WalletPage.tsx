@@ -1,6 +1,7 @@
 import { AppLayout } from "@/components/AppLayout";
 import { useAppData } from "@/context/AppDataContext";
 import { BixCounter } from "@/components/BixCounter";
+import { supabase } from "@/integrations/supabase/client";
 import { formatBixAmount } from "@/lib/currency";
 import { useAuth } from "@/hooks/useAuth";
 import { motion } from "framer-motion";
@@ -19,6 +20,7 @@ import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
+import { useState } from "react";
 
 export default function WalletPage() {
   const { session, wallet } = useAuth();
@@ -26,12 +28,34 @@ export default function WalletPage() {
     rewardTransactions: transactions,
     loading,
     refreshRewardTransactions,
+    refreshWallet, // Need to refresh wallet after claiming
   } = useAppData();
 
   const copyAddress = () => {
     if (wallet?.address) {
       navigator.clipboard.writeText(wallet.address);
       toast.success("Address copied!");
+    }
+  };
+
+  const [claiming, setClaiming] = useState(false);
+
+  const handleClaimPendingBix = async () => {
+    if (!session?.user?.id || !wallet?.pending_balance || wallet.pending_balance <= 0) return;
+
+    setClaiming(true);
+    try {
+      const { data, error } = await supabase.rpc('claim_pending_bix', { p_user_id: session.user.id });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+      toast.success(`Successfully claimed ${formatBixAmount(data[0].claimed_amount)} BIX!`);
+      await refreshWallet(); // Refresh wallet data to show updated balances
+    } catch (err) {
+      toast.error(`Failed to claim BIX: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setClaiming(false);
     }
   };
 
@@ -94,9 +118,18 @@ export default function WalletPage() {
               <Copy className="h-3 w-3" />
             </button>
           )}
-          {Number(wallet?.pending_balance || 0) > 0 && (
-            <p className="mt-2 text-sm text-warning">
-              + {formatBixAmount(wallet?.pending_balance)} BIX pending
+          {Number(wallet?.pending_balance || 0) > 0 && session?.user?.id && (
+            <p className="mt-2 text-sm text-warning flex items-center gap-2">
+              + <BixCounter value={Number(wallet?.pending_balance || 0)} /> BIX pending
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleClaimPendingBix}
+                disabled={claiming}
+                className="ml-2 h-7 px-3 text-xs"
+              >
+                {claiming ? "Claiming..." : "Claim Now"}
+              </Button>
             </p>
           )}
         </motion.div>

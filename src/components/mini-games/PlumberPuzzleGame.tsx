@@ -101,14 +101,16 @@ export function PlumberPuzzleGame() {
         if (sessionId) {
           setSubmitting(true);
           try {
-            await submitMiniGameScore(sessionId, moves, {
+            const result = await submitMiniGameScore(sessionId, moves, {
               xp_earned: xp,
-              duration: finalTime
+              duration: finalTime,
+              level: gameState.currentLevel,
+              final_grid: grid // Send the grid state for backend verification
             });
             
             const updated = { 
               ...gameState, 
-              totalXP: gameState.totalXP + xp
+              totalXP: gameState.totalXP + result.xp_earned
             };
             setGameState(updated);
             saveState(updated);
@@ -165,7 +167,6 @@ export function PlumberPuzzleGame() {
     setGameState(updated);
     saveState(updated);
     setShowWin(false);
-    initLevel();
   }
 
   function handleRestart() {

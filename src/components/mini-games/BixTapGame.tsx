@@ -1,4 +1,4 @@
-import { getMiniGamesOverview } from "@/lib/miniGamesApi";
+import { getMiniGamesOverview, submitMiniGameScore, startMiniGameSession } from "@/lib/miniGamesApi";
 import { formatBix } from "@/lib/currency";
 import { BixCounter } from "@/components/BixCounter";
 import { formatXp } from "@/lib/progression";
@@ -13,6 +13,7 @@ type GameFinishPayload = {
 
 type Props = {
   onFinish: (payload: GameFinishPayload) => void;
+  onSyncSuccess?: () => void;
 };
 
 type Bubble = {
@@ -31,7 +32,8 @@ const PERFECT_WINDOW_MIN = 200;
 const PERFECT_WINDOW_MAX = 600;
 const MAX_ACTIVE_BUBBLES = 20;
 
-export function BixTapGame({ }: Props) {
+export function BixTapGame({ onFinish, onSyncSuccess }: Props) {
+  const [sessionId, setSessionId] = useState<string | null>(null);
   // Requirement 2: Energy System
   const [energy, setEnergy] = useState(MAX_ENERGY);
   
@@ -50,9 +52,14 @@ export function BixTapGame({ }: Props) {
 
   // Initialize energy from backend if available
   useEffect(() => {
-    getMiniGamesOverview().then(data => {
+    const init = async () => {
+      const data = await getMiniGamesOverview();
       if (data?.energy !== undefined) setEnergy(data.energy);
-    }).catch(() => {});
+      
+      const session = await startMiniGameSession('bixtap', { started_at: new Date().toISOString() });
+      setSessionId(session.session_id);
+    };
+    init().catch(() => {});
   }, []);
 
   // Requirement 2: Energy Regeneration Logic
@@ -65,19 +72,20 @@ export function BixTapGame({ }: Props) {
 
   // Requirement 8: Periodic Backend Sync
   const syncXp = useCallback(async () => {
-    const xpToSync = pendingXpRef.current;
-    if (xpToSync <= 0) return;
+    const scoreToSync = pendingXpRef.current; // Using XP as score for Tap
+    if (scoreToSync <= 0 || !sessionId) return;
 
     pendingXpRef.current = 0; // Optimistically clear
     try {
-      await fetch('/api/award_xp', {
-        method: 'POST',
-        body: JSON.stringify({ xp: xpToSync }),
+      await submitMiniGameScore(sessionId, scoreToSync, {
+        ts: Date.now(),
+        type: 'periodic_sync'
       });
+      if (onSyncSuccess) onSyncSuccess();
     } catch (err) {
-      pendingXpRef.current += xpToSync; // Re-add on failure
+      pendingXpRef.current += scoreToSync; // Re-add on failure
     }
-  }, []);
+  }, [sessionId, onSyncSuccess]);
 
   useEffect(() => {
     const syncInterval = setInterval(syncXp, 15000); // Sync every 15s

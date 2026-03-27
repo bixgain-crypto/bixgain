@@ -290,6 +290,16 @@ export default function Boosts() {
     void loadOverview();
   }, [loadOverview]);
 
+  // Handler for games that submit their own scores internally (like Plumber Puzzle)
+  const handleExternalGameSuccess = useCallback(async () => {
+    await Promise.all([
+      refreshUserProfile(),
+      refreshWallet(),
+      refreshActivities(),
+      loadOverview()
+    ]);
+  }, [refreshUserProfile, refreshWallet, refreshActivities, loadOverview]);
+
   const beginSession = async (slug: string) => {
     if (!levelUnlocked) {
       toast.error(`Mini games unlock at Level ${MINI_GAME_LEVEL_REQUIRED}.`);
@@ -655,7 +665,7 @@ export default function Boosts() {
               Level 3 Required
             </Badge>
           </div>
-          <PlumberPuzzleGame />
+          <PlumberPuzzleGame onSuccess={handleExternalGameSuccess} />
         </motion.section>
 
         <div className="glass rounded-2xl p-5 border border-border/70">

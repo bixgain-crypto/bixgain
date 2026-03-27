@@ -15,12 +15,12 @@ export default function GameDetail() {
   if (!game) {
     return (
       <AppLayout>
-        <Card className="max-w-xl mx-auto mt-10">
+        <Card className="max-w-xl mx-auto mt-10 shadow-lg border-border/60">
           <CardHeader>
             <CardTitle>Game not found</CardTitle>
           </CardHeader>
           <CardContent>
-            <Button asChild>
+            <Button asChild variant="secondary">
               <Link to="/games">Back to Games</Link>
             </Button>
           </CardContent>

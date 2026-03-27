@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { formatBixAmount } from "@/lib/currency";
 import { Button } from "@/components/ui/button";
+import { BixCounter } from "@/components/BixCounter";
 import { formatXp } from "@/lib/progression";
 import type { MiniGameSubmitResult } from "@/lib/miniGamesApi";
 
@@ -55,6 +56,9 @@ export function GameResultPanel({ gameResult, displayXp, displayBix, onSubmitSco
         <div className="rounded-lg border border-border/60 bg-secondary/35 px-3 py-2">
           <p className="text-xs text-muted-foreground uppercase">BIX Earned</p>
           <p className="mt-1 text-xl font-bold text-amber-400">{formatBixAmount(displayBix)}</p>
+          <p className="mt-1 text-xl font-bold text-amber-400">
+            <BixCounter value={displayBix} />
+          </p>
         </div>
         <div className="rounded-lg border border-border/60 bg-secondary/35 px-3 py-2">
           <p className="text-xs text-muted-foreground uppercase">Longest Length</p>

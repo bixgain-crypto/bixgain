@@ -15,6 +15,7 @@ export function ArcadeGameInterface({ game, onReward }: Props) {
   }
 
   if (game.slug === "bixsnake-arena") {
+    // Reverting to previous logic of calculating a local reward estimate
     return <BixSnakeArenaGame onFinish={({ rawScore }) => onReward(Math.max(2, Math.round(rawScore / 6)))} />;
   }
 
