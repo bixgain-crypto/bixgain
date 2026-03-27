@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { formatBix } from '@/lib/currency';
-import { BixCounter } from '@/components/BixCounter';
-import { computeFlow, checkWin, rotatePipe, autoSolve } from '@/lib/pipeGame/pipeTypes';
+import { computeFlow, checkWin, rotatePipe } from '@/lib/pipeGame/pipeTypes';
 import type { Grid } from '@/lib/pipeGame/pipeTypes';
 import { generateLevel, getLevelConfig } from '@/lib/pipeGame/puzzleGenerator';
+import { submitMiniGameScore, startMiniGameSession } from '@/lib/miniGamesApi';
+import { formatBix } from '@/lib/currency';
+import { BixCounter } from '@/components/BixCounter';
 import { formatXp } from '@/lib/progression';
 import PipeTile from './PipeTile';
 
@@ -34,12 +35,14 @@ function saveState(state: GameState): void {
 }
 
 export function PlumberPuzzleGame() {
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [gameState, setGameState] = useState<GameState>(loadState);
   const [grid, setGrid] = useState<Grid>([]);
   const [filled, setFilled] = useState<boolean[][]>([]);
   const [phase, setPhase] = useState<Phase>('playing');
   const [moves, setMoves] = useState(0);
   const [timer, setTimer] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
   const [timerActive, setTimerActive] = useState(false);
   const [hint, setHint] = useState<[number, number] | null>(null);
   const [hintsLeft, setHintsLeft] = useState(3);
@@ -48,24 +51,15 @@ export function PlumberPuzzleGame() {
   const [splash, setSplash] = useState(false);
   const winTimeout = useRef<ReturnType<typeof setTimeout>>();
 
-  // Fix: Track window width for responsive TILE_SIZE
-  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 480);
-
-  useEffect(() => {
-    const handleResize = () => setWindowWidth(window.innerWidth);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
   const config = getLevelConfig(gameState.currentLevel);
   const { rows, cols } = config;
 
   const TILE_SIZE = Math.min(
-    Math.floor(Math.min(windowWidth - 32, 480) / cols) - 4,
+    Math.floor(Math.min(window.innerWidth - 32, 480) / cols) - 4,
     Math.floor(360 / rows) - 4
   );
 
-  const initLevel = useCallback((levelOverride?: number) => {
+  const initLevel = useCallback(async () => {
     const newGrid = generateLevel(config);
     setGrid(newGrid);
     setFilled(Array.from({ length: config.rows }, () => Array(config.cols).fill(false)));
@@ -76,7 +70,17 @@ export function PlumberPuzzleGame() {
     setTimer(0);
     setTimerActive(true);
     setHint(null);
-  }, [config]);
+    
+    try {
+      const session = await startMiniGameSession('bixpuzzle', {
+        level: gameState.currentLevel,
+        started_at: new Date().toISOString()
+      });
+      setSessionId(session.session_id);
+    } catch (err) {
+      console.error("Failed to start session:", err);
+    }
+  }, [config.levelNumber]);
 
   useEffect(() => { initLevel(); }, [initLevel]);
 
@@ -85,25 +89,41 @@ export function PlumberPuzzleGame() {
     const f = computeFlow(grid, rows, cols);
     setFilled(f);
     if (checkWin(grid, f, rows, cols) && phase === 'playing') {
+      const finalTime = timer;
       setPhase('flowing');
       setTimerActive(false);
       setSplash(true);
-      winTimeout.current = setTimeout(() => {
-        const xp = config.xpReward + (timer < 30 ? Math.floor(config.xpReward * 0.5) : 0);
+      
+      winTimeout.current = setTimeout(async () => {
+        const xp = config.xpReward + (finalTime < 30 ? Math.floor(config.xpReward * 0.5) : 0);
         setEarnedXP(xp);
-        const updated = { 
-          ...gameState, 
-          totalXP: gameState.totalXP + xp
-          // Removed currentLevel + 1 from here to prevent double-leveling
-        };
-        setGameState(updated);
-        saveState(updated);
-        setPhase('won');
-        setShowWin(true);
-        setSplash(false);
+        
+        if (sessionId) {
+          setSubmitting(true);
+          try {
+            await submitMiniGameScore(sessionId, moves, {
+              xp_earned: xp,
+              duration: finalTime
+            });
+            
+            const updated = { 
+              ...gameState, 
+              totalXP: gameState.totalXP + xp
+            };
+            setGameState(updated);
+            saveState(updated);
+            setPhase('won');
+            setShowWin(true);
+          } catch (err) {
+            console.error("Reward sync failed:", err);
+          } finally {
+            setSubmitting(false);
+            setSplash(false);
+          }
+        }
       }, 1500);
     }
-  }, [grid, gameState, config, timer, phase, rows, cols]);
+  }, [grid, gameState, config, phase, rows, cols, sessionId, moves]);
 
   useEffect(() => {
     if (!timerActive) return;
@@ -126,13 +146,6 @@ export function PlumberPuzzleGame() {
     setHint(null);
   }
 
-  function handleAutoSolve() {
-    if (phase !== 'playing') return;
-    const solvedGrid = autoSolve(grid, rows, cols);
-    setGrid(solvedGrid);
-    setMoves(m => m + 1);
-  }
-
   function handleHint() {
     if (hintsLeft <= 0 || phase !== 'playing') return;
     const wrongCells: [number, number][] = [];
@@ -148,11 +161,11 @@ export function PlumberPuzzleGame() {
   }
 
   function handleNextLevel() {
-    // Fix: Increment level only when the user explicitly moves forward
     const updated = { ...gameState, currentLevel: gameState.currentLevel + 1 };
     setGameState(updated);
     saveState(updated);
     setShowWin(false);
+    initLevel();
   }
 
   function handleRestart() {
@@ -178,14 +191,11 @@ export function PlumberPuzzleGame() {
         </div>
         {/* XP progress */}
         <div className="mt-2 mx-auto max-w-xs">
-          <div className="flex justify-between text-[10px] text-slate-500 mb-1 px-1">
-            <span>Progress</span>
+          <div className="flex justify-between text-[10px] text-slate-500 mb-1">
+            <span>Total XP</span>
             <div className="flex gap-2">
               <span>{formatXp(gameState.totalXP)} XP</span>
-              <span className="text-amber-400 font-bold">
-                <BixCounter value={gameState.totalXP / 10000} />
-                {" BIX"}
-              </span>
+              <span className="text-amber-400 font-bold">{formatBix(gameState.totalXP)} BIX</span>
             </div>
           </div>
           <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
@@ -225,15 +235,20 @@ export function PlumberPuzzleGame() {
           {splash && (
             <div className="absolute inset-0 rounded-2xl pointer-events-none flex items-center justify-center z-20">
               <div className="text-5xl animate-bounce">💧</div>
+              {submitting && (
+                <div className="absolute inset-0 bg-slate-900/40 flex items-center justify-center">
+                  <span className="text-xs text-cyan-400 animate-pulse">Syncing Rewards...</span>
+                </div>
+              )}
             </div>
           )}
         </div>
 
         {/* Reward preview */}
         <div className="mt-3 text-center">
-          <span className="text-xs text-slate-500">Reward: </span>
-          <span className="text-xs font-bold text-amber-400 mr-1">{formatBix(config.xpReward)} BIX</span>
+          <span className="text-xs text-slate-500">Complete for </span>
           <span className="text-xs font-bold text-yellow-400">+{config.xpReward} XP</span>
+          <span className="text-xs font-bold text-amber-400 ml-1">({formatBix(config.xpReward)} BIX)</span>
           {timer < 30 && (
             <span className="text-xs text-emerald-400 ml-1">(+{Math.floor(config.xpReward * 0.5)} time bonus!)</span>
           )}
@@ -258,14 +273,6 @@ export function PlumberPuzzleGame() {
             <span className="text-xl">💡</span>
             <span className="text-xs font-medium">Hint ({hintsLeft})</span>
           </button>
-          <button
-            onClick={handleAutoSolve}
-            disabled={phase !== 'playing'}
-            className="flex-1 flex flex-col items-center gap-1 py-3 bg-slate-800/80 hover:bg-emerald-900/40 border border-slate-600/60 rounded-2xl text-slate-300 hover:text-emerald-300 transition-all active:scale-95 disabled:opacity-40"
-          >
-            <span className="text-xl">✅</span>
-            <span className="text-xs font-medium">Solve</span>
-          </button>
         </div>
       </div>
 
@@ -282,15 +289,11 @@ export function PlumberPuzzleGame() {
 
             <div className="bg-slate-700/50 rounded-2xl p-4 mb-5 border border-slate-600/40">
               <div className="text-3xl font-black text-yellow-400 mb-1">+{earnedXP} XP</div>
-              <div className="text-sm font-bold text-amber-500 mb-1">
-                +<BixCounter value={earnedXP / 10000} />
-                {" BIX"}
-              </div>
-              <div className="text-xs text-slate-400 flex flex-col gap-0.5 mt-2">
+              <div className="text-sm font-bold text-amber-500 mb-1">+{formatBix(earnedXP)} BIX</div>
+              <div className="text-xs text-slate-400 mt-2 flex flex-col gap-1">
                 <span>Total: {formatXp(gameState.totalXP)} XP</span>
                 <span className="text-amber-400/80 font-medium">
-                  <BixCounter value={gameState.totalXP / 10000} />
-                  {" BIX"}
+                  <BixCounter value={gameState.totalXP / 10000} /> BIX
                 </span>
               </div>
               {earnedXP > config.xpReward && (
