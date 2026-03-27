@@ -15,6 +15,10 @@ interface GameState {
   totalXP: number;
 }
 
+interface PlumberPuzzleGameProps {
+  onSuccess?: () => void | Promise<void>;
+}
+
 const STORAGE_KEY = 'bixpuzzle-plumber-state';
 
 function loadState(): GameState {
@@ -34,7 +38,7 @@ function saveState(state: GameState): void {
   } catch {}
 }
 
-export function PlumberPuzzleGame() {
+export function PlumberPuzzleGame({ onSuccess }: PlumberPuzzleGameProps) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [gameState, setGameState] = useState<GameState>(loadState);
   const [grid, setGrid] = useState<Grid>([]);
@@ -72,7 +76,7 @@ export function PlumberPuzzleGame() {
     setHint(null);
     
     try {
-      const session = await startMiniGameSession('bixpuzzle', {
+      const session = await startMiniGameSession('plumber_puzzle', {
         level: gameState.currentLevel,
         started_at: new Date().toISOString()
       });
@@ -114,6 +118,7 @@ export function PlumberPuzzleGame() {
             };
             setGameState(updated);
             saveState(updated);
+            await onSuccess?.();
             setPhase('won');
             setShowWin(true);
           } catch (err) {
@@ -125,7 +130,7 @@ export function PlumberPuzzleGame() {
         }
       }, 1500);
     }
-  }, [grid, gameState, config, phase, rows, cols, sessionId, moves]);
+  }, [grid, gameState, config, phase, rows, cols, sessionId, moves, onSuccess]);
 
   useEffect(() => {
     if (!timerActive) return;
