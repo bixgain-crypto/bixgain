@@ -26,7 +26,7 @@ type Bubble = {
 
 // Constants based on requirements
 const MAX_ENERGY = 100;
-const ENERGY_REGEN_MS = 5000;
+const ENERGY_REGEN_MS = 500;
 const BASE_XP = 10;
 const PERFECT_WINDOW_MIN = 200;
 const PERFECT_WINDOW_MAX = 600;
