@@ -140,7 +140,12 @@ export function BixTapGame({ onFinish, onSyncSuccess }: Props) {
     const { earned, type } = calculateXP(newCombo);
     const finalType = (isPerfect && type === "normal") ? "perfect" : type;
 
-    // Update local state
+    // Bug Fix: Prevent NaN in XP if multiplier fails
+    if (Number.isNaN(earned)) {
+      console.error("XP Calculation resulted in NaN");
+      return;
+    }
+
     setEnergy((e) => e - 1);
     setCombo(newCombo);
     setSessionXp((prev) => prev + earned);

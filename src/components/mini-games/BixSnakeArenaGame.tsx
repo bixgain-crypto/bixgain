@@ -456,6 +456,7 @@ function resolveFoodEats(state: ArenaState) {
 function killSnake(state: ArenaState, snake: Snake) {
   if (!snake.alive) return;
   snake.alive = false;
+  if (snake.id === state.playerId) state.gameFinished = true;
 
   for (let index = 0; index < snake.segments.length; index += 1) {
     const segment = snake.segments[index];
@@ -467,10 +468,6 @@ function killSnake(state: ArenaState, snake: Snake) {
       segment.y + randomInRange(-6, 6),
       kind,
     );
-  }
-
-  if (snake.id === state.playerId) {
-    state.gameFinished = true;
   }
 }
 
